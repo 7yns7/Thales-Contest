@@ -31,19 +31,23 @@ int main(void)
 	size_t cycles = 0;
 
 	// input array
-	kiss_fft_cpx *cx_in = &g_cx_in;
+	kiss_fft_cpx *cx_in = (kiss_fft_cpx *)g_cx_in;
 
 	// output array
 	kiss_fft_cpx cx_out[N];
 
 	// FFT configuration
 	kiss_fft_cfg cfg = kiss_fft_alloc(N, 0, NULL, NULL);
-
+    printf("please... \n");
 	if (!cfg)
 	{
 		printf("FFT alloc failed\n");
 		return 1;
 	}
+
+#ifdef KISSFFT_USE_TWIDDLE_CACHE
+	kiss_fft_hw_load_twiddles(cfg);
+#endif
 
 	printf("FFT running...\n");
 
@@ -56,7 +60,7 @@ int main(void)
 
 	printf("FFT finished\n");
 
-	printf("kiss_fft took %u instructions and %u cycles\n", instret, cycles, instret, cycles);
+	printf("kiss_fft took %u instructions and %u cycles\n", (unsigned)instret, (unsigned)cycles);
 
 	// compare gold and output
 	if (memcmp(cx_out, g_gold, 2 * N * sizeof(kiss_fft_scalar)) != 0)

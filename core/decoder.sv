@@ -460,6 +460,107 @@ module decoder
         end
 
         // --------------------------
+        // Custom packed complex ops
+        // --------------------------
+        riscv::OpcodeCustom0: begin
+          instruction_o.fu  = ALU;
+          instruction_o.rs1 = instr.rtype.rs1;
+          instruction_o.rs2 = instr.rtype.rs2;
+          instruction_o.rd  = instr.rtype.rd;
+
+          if (instr.rtype.funct7 != 7'b000_0000) begin
+            illegal_instr = 1'b1;
+          end else begin
+            unique case (instr.rtype.funct3)
+              3'b000: instruction_o.op = ariane_pkg::CADD16;
+              3'b001: instruction_o.op = ariane_pkg::CSUB16;
+              3'b010: instruction_o.op = ariane_pkg::CMUL16;
+              3'b011: begin
+                instruction_o.op = ariane_pkg::CMADD16;
+                imm_select = MUX_RD_RS3;
+              end
+              3'b100: begin
+                instruction_o.op = ariane_pkg::CMSUB16;
+                imm_select = MUX_RD_RS3;
+              end
+              3'b101: begin
+                instruction_o.fu = MULT;
+                instruction_o.op = ariane_pkg::TWLD;
+                instruction_o.rd = '0;
+              end
+              3'b110: begin
+                instruction_o.fu = MULT;
+                instruction_o.op = ariane_pkg::TWCFG;
+                instruction_o.rd = '0;
+              end
+              default: illegal_instr = 1'b1;
+            endcase
+          end
+        end
+
+        // --------------------------
+        // Custom butterfly ops (R4)
+        // --------------------------
+        riscv::OpcodeCustom1: begin
+          instruction_o.fu  = MULT;
+          instruction_o.rs1 = instr.r4type.rs1;
+          instruction_o.rs2 = instr.r4type.rs2;
+          instruction_o.rd  = instr.r4type.rd;
+
+          if (instr.r4type.funct2 != 2'b00) begin
+            illegal_instr = 1'b1;
+          end else begin
+            unique case (instr.r4type.funct3)
+              3'b000: begin
+                instruction_o.op = ariane_pkg::BFY2;
+                imm_select = RS3;
+              end
+              3'b001: begin
+                instruction_o.op = ariane_pkg::BFY2H;
+              end
+              default: illegal_instr = 1'b1;
+            endcase
+          end
+        end
+
+        // --------------------------
+        // Custom BFY4 ops (R4)
+        // --------------------------
+        riscv::OpcodeCustom2: begin
+          instruction_o.fu  = MULT;
+          instruction_o.rs1 = instr.r4type.rs1;
+          instruction_o.rs2 = instr.r4type.rs2;
+          instruction_o.rd  = instr.r4type.rd;
+
+          if (instr.r4type.funct2 != 2'b00) begin
+            illegal_instr = 1'b1;
+          end else begin
+            unique case (instr.r4type.funct3)
+              3'b000: begin
+                instruction_o.op = ariane_pkg::BFY4_S0;
+                instruction_o.rd = '0;
+                imm_select = RS3;
+              end
+              3'b001: begin
+                instruction_o.op = ariane_pkg::BFY4_S1;
+                instruction_o.rd = '0;
+                imm_select = RS3;
+              end
+              3'b010: begin
+                instruction_o.op = ariane_pkg::BFY4_S2;
+                instruction_o.rd = '0;
+                imm_select = RS3;
+              end
+              3'b011: instruction_o.op = ariane_pkg::BFY4_O0;
+              3'b100: instruction_o.op = ariane_pkg::BFY4_O1;
+              3'b101: instruction_o.op = ariane_pkg::BFY4_O2;
+              3'b110: instruction_o.op = ariane_pkg::BFY4_O3;
+              default: illegal_instr = 1'b1;
+            endcase
+          end
+        end
+
+        // --------------------------
         // Reg-Reg Operations
         // --------------------------
         riscv::OpcodeOp: begin

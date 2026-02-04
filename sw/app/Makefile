@@ -104,6 +104,8 @@ RISCV_CFLAGS :=-DPERFORMANCE_RUN=1 \
 		-DPREALLOCATE=1 \
 		-fvisibility=hidden \
 		-DSTDIO_THRU_UART \
+		-DKISSFFT_USE_TWIDDLE_CACHE \
+		-DKISSFFT_USE_BFY4_SCALE \
 		-O3 \
 		-mcmodel=medany \
 		-fno-tree-loop-distribute-patterns\
@@ -167,8 +169,11 @@ libcva6.a: $(OBJ_BSP)
 %.coe: %.mem
 	$(utils_dir)/mem2coe.py $(src_dir)/$<
 
-fft/kissfft_lib/libkissfft-int16_t.a:
-	make -C fft/kissfft_lib CC=$(RISCV_GCC) CFLAGS='$(RISCV_CFLAGS)' $(INCS) KISSFFT_DATATYPE=int16_t KISSFFT_STATIC=1 KISSFFT_TOOLS=0
+fft/kissfft_lib/libkissfft-int16_t.a: FORCE
+	make -C fft/kissfft_lib CC=$(RISCV_GCC) CFLAGS='$(RISCV_CFLAGS) -DKISSFFT_USE_IM_CUSTOM -DKISSFFT_USE_BFY2 -DKISSFFT_USE_BFY4 -DKISSFFT_MANUAL_UNROLL4 -DKISSFFT_USE_TWIDDLE_CACHE -DKISSFFT_USE_BFY4_SCALE' $(INCS) KISSFFT_DATATYPE=int16_t KISSFFT_STATIC=1 KISSFFT_TOOLS=0
+
+.PHONY: FORCE
+FORCE:
 
 
 all: $(bmarks)

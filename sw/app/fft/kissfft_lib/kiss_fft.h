@@ -133,6 +133,10 @@ void KISS_FFT_API kiss_fft(kiss_fft_cfg cfg,const kiss_fft_cpx *fin,kiss_fft_cpx
  * */
 void KISS_FFT_API kiss_fft_stride(kiss_fft_cfg cfg,const kiss_fft_cpx *fin,kiss_fft_cpx *fout,int fin_stride);
 
+#ifdef KISSFFT_USE_TWIDDLE_CACHE
+void KISS_FFT_API kiss_fft_hw_load_twiddles(kiss_fft_cfg cfg);
+#endif
+
 /* If kiss_fft_alloc allocated a buffer, it is one contiguous 
    buffer and can be simply free()d when no longer needed*/
 #define kiss_fft_free KISS_FFT_FREE

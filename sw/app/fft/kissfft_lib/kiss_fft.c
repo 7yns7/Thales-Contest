@@ -20,15 +20,38 @@ static void kf_bfly2(
 {
     kiss_fft_cpx * Fout2;
     kiss_fft_cpx * tw1 = st->twiddles;
+#ifndef KISSFFT_USE_IM_CUSTOM
     kiss_fft_cpx t;
+#endif
     Fout2 = Fout + m;
     do{
         C_FIXDIV(*Fout,2); C_FIXDIV(*Fout2,2);
 
+#ifdef KISSFFT_USE_BFY2
+    {
+        uint32_t a = kissfft_pack_cpx(*Fout);
+        uint32_t b = kissfft_pack_cpx(*Fout2);
+        uint32_t tw = kissfft_pack_cpx(*tw1);
+        uint32_t lo = C_BFY2_LO(a, b, tw);
+            uint32_t hi = C_BFY2_HI(lo);
+        *Fout = kissfft_unpack_cpx(lo);
+        *Fout2 = kissfft_unpack_cpx(hi);
+    }
+#elif defined(KISSFFT_USE_IM_CUSTOM)
+    {
+        kiss_fft_cpx f0 = *Fout;
+        kiss_fft_cpx f1 = *Fout;
+        C_MULSUB(f1, *Fout2, *tw1);
+        C_MULACC(f0, *Fout2, *tw1);
+        *Fout2 = f1;
+        *Fout  = f0;
+    }
+#else
         C_MUL (t,  *Fout2 , *tw1);
-        tw1 += fstride;
         C_SUB( *Fout2 ,  *Fout , t );
         C_ADDTO( *Fout ,  t );
+#endif
+        tw1 += fstride;
         ++Fout2;
         ++Fout;
     }while (--m);
@@ -46,19 +69,79 @@ static void kf_bfly4(
     size_t k=m;
     const size_t m2=2*m;
     const size_t m3=3*m;
+#ifdef KISSFFT_USE_TWIDDLE_CACHE
+    size_t tw1_idx = 0;
+    size_t tw2_idx = 0;
+    size_t tw3_idx = 0;
+    const size_t tw1_step = fstride;
+    const size_t tw2_step = fstride*2;
+    const size_t tw3_step = fstride*3;
+#endif
 
 
     tw3 = tw2 = tw1 = st->twiddles;
 
-    do {
+#ifdef KISSFFT_MANUAL_UNROLL4
+    while (k >= 2) {
+    #ifndef KISSFFT_USE_BFY4_SCALE
         C_FIXDIV(*Fout,4); C_FIXDIV(Fout[m],4); C_FIXDIV(Fout[m2],4); C_FIXDIV(Fout[m3],4);
+    #endif
 
+    #ifndef KISSFFT_USE_BFY4
         C_MUL(scratch[0],Fout[m] , *tw1 );
         C_MUL(scratch[1],Fout[m2] , *tw2 );
         C_MUL(scratch[2],Fout[m3] , *tw3 );
+    #endif
 
+    #ifdef KISSFFT_USE_BFY4
+        {
+            uint32_t a = kissfft_pack_cpx(*Fout);
+            uint32_t b = kissfft_pack_cpx(Fout[m]);
+            uint32_t c = kissfft_pack_cpx(Fout[m2]);
+            uint32_t d = kissfft_pack_cpx(Fout[m3]);
+#ifdef KISSFFT_USE_TWIDDLE_CACHE
+            uint32_t t1 = (uint32_t)tw1_idx;
+            uint32_t t2 = (uint32_t)tw2_idx;
+            uint32_t t3 = (uint32_t)tw3_idx;
+#else
+            uint32_t t1 = kissfft_pack_cpx(*tw1);
+            uint32_t t2 = kissfft_pack_cpx(*tw2);
+            uint32_t t3 = kissfft_pack_cpx(*tw3);
+#endif
+            C_BFY4_S0(a, b, t1);
+            C_BFY4_S1(c, d, t2);
+            C_BFY4_S2(t3);
+            uint32_t o0 = C_BFY4_O0(t3);
+            uint32_t o1 = C_BFY4_O1(t3);
+            uint32_t o2 = C_BFY4_O2(t3);
+            uint32_t o3 = C_BFY4_O3(t3);
+            *Fout = kissfft_unpack_cpx(o0);
+            Fout[m] = kissfft_unpack_cpx(o1);
+            Fout[m2] = kissfft_unpack_cpx(o2);
+            Fout[m3] = kissfft_unpack_cpx(o3);
+        }
+        tw1 += fstride;
+        tw2 += fstride*2;
+        tw3 += fstride*3;
+    #ifdef KISSFFT_USE_TWIDDLE_CACHE
+        tw1_idx += tw1_step;
+        tw2_idx += tw2_step;
+        tw3_idx += tw3_step;
+    #endif
+    #else
+    #ifdef KISSFFT_USE_IM_CUSTOM
+        {
+            kiss_fft_cpx f0 = *Fout;
+            kiss_fft_cpx f5 = *Fout;
+            C_MULACC(f0, Fout[m2], *tw2);
+            C_MULSUB(f5, Fout[m2], *tw2);
+            *Fout = f0;
+            scratch[5] = f5;
+        }
+    #else
         C_SUB( scratch[5] , *Fout, scratch[1] );
         C_ADDTO(*Fout, scratch[1]);
+    #endif
         C_ADD( scratch[3] , scratch[0] , scratch[2] );
         C_SUB( scratch[4] , scratch[0] , scratch[2] );
         C_SUB( Fout[m2], *Fout, scratch[3] );
@@ -78,8 +161,258 @@ static void kf_bfly4(
             Fout[m3].r = scratch[5].r - scratch[4].i;
             Fout[m3].i = scratch[5].i + scratch[4].r;
         }
+#endif
+        ++Fout;
+
+    #ifndef KISSFFT_USE_BFY4_SCALE
+        C_FIXDIV(*Fout,4); C_FIXDIV(Fout[m],4); C_FIXDIV(Fout[m2],4); C_FIXDIV(Fout[m3],4);
+    #endif
+
+    #ifndef KISSFFT_USE_BFY4
+        C_MUL(scratch[0],Fout[m] , *tw1 );
+        C_MUL(scratch[1],Fout[m2] , *tw2 );
+        C_MUL(scratch[2],Fout[m3] , *tw3 );
+    #endif
+
+    #ifdef KISSFFT_USE_BFY4
+        {
+            uint32_t a = kissfft_pack_cpx(*Fout);
+            uint32_t b = kissfft_pack_cpx(Fout[m]);
+            uint32_t c = kissfft_pack_cpx(Fout[m2]);
+            uint32_t d = kissfft_pack_cpx(Fout[m3]);
+#ifdef KISSFFT_USE_TWIDDLE_CACHE
+            uint32_t t1 = (uint32_t)tw1_idx;
+            uint32_t t2 = (uint32_t)tw2_idx;
+            uint32_t t3 = (uint32_t)tw3_idx;
+#else
+            uint32_t t1 = kissfft_pack_cpx(*tw1);
+            uint32_t t2 = kissfft_pack_cpx(*tw2);
+            uint32_t t3 = kissfft_pack_cpx(*tw3);
+#endif
+            C_BFY4_S0(a, b, t1);
+            C_BFY4_S1(c, d, t2);
+            C_BFY4_S2(t3);
+            uint32_t o0 = C_BFY4_O0(t3);
+            uint32_t o1 = C_BFY4_O1(t3);
+            uint32_t o2 = C_BFY4_O2(t3);
+            uint32_t o3 = C_BFY4_O3(t3);
+            *Fout = kissfft_unpack_cpx(o0);
+            Fout[m] = kissfft_unpack_cpx(o1);
+            Fout[m2] = kissfft_unpack_cpx(o2);
+            Fout[m3] = kissfft_unpack_cpx(o3);
+        }
+        tw1 += fstride;
+        tw2 += fstride*2;
+        tw3 += fstride*3;
+    #ifdef KISSFFT_USE_TWIDDLE_CACHE
+        tw1_idx += tw1_step;
+        tw2_idx += tw2_step;
+        tw3_idx += tw3_step;
+    #endif
+    #else
+    #ifdef KISSFFT_USE_IM_CUSTOM
+        {
+            kiss_fft_cpx f0 = *Fout;
+            kiss_fft_cpx f5 = *Fout;
+            C_MULACC(f0, Fout[m2], *tw2);
+            C_MULSUB(f5, Fout[m2], *tw2);
+            *Fout = f0;
+            scratch[5] = f5;
+        }
+    #else
+        C_SUB( scratch[5] , *Fout, scratch[1] );
+        C_ADDTO(*Fout, scratch[1]);
+    #endif
+        C_ADD( scratch[3] , scratch[0] , scratch[2] );
+        C_SUB( scratch[4] , scratch[0] , scratch[2] );
+        C_SUB( Fout[m2], *Fout, scratch[3] );
+        tw1 += fstride;
+        tw2 += fstride*2;
+        tw3 += fstride*3;
+        C_ADDTO( *Fout , scratch[3] );
+
+        if(st->inverse) {
+            Fout[m].r = scratch[5].r - scratch[4].i;
+            Fout[m].i = scratch[5].i + scratch[4].r;
+            Fout[m3].r = scratch[5].r + scratch[4].i;
+            Fout[m3].i = scratch[5].i - scratch[4].r;
+        }else{
+            Fout[m].r = scratch[5].r + scratch[4].i;
+            Fout[m].i = scratch[5].i - scratch[4].r;
+            Fout[m3].r = scratch[5].r - scratch[4].i;
+            Fout[m3].i = scratch[5].i + scratch[4].r;
+        }
+#endif
+        ++Fout;
+        k -= 2;
+    }
+
+    if (k) {
+    #ifndef KISSFFT_USE_BFY4_SCALE
+        C_FIXDIV(*Fout,4); C_FIXDIV(Fout[m],4); C_FIXDIV(Fout[m2],4); C_FIXDIV(Fout[m3],4);
+    #endif
+
+    #ifndef KISSFFT_USE_BFY4
+        C_MUL(scratch[0],Fout[m] , *tw1 );
+        C_MUL(scratch[1],Fout[m2] , *tw2 );
+        C_MUL(scratch[2],Fout[m3] , *tw3 );
+    #endif
+
+    #ifdef KISSFFT_USE_BFY4
+        {
+            uint32_t a = kissfft_pack_cpx(*Fout);
+            uint32_t b = kissfft_pack_cpx(Fout[m]);
+            uint32_t c = kissfft_pack_cpx(Fout[m2]);
+            uint32_t d = kissfft_pack_cpx(Fout[m3]);
+#ifdef KISSFFT_USE_TWIDDLE_CACHE
+            uint32_t t1 = (uint32_t)tw1_idx;
+            uint32_t t2 = (uint32_t)tw2_idx;
+            uint32_t t3 = (uint32_t)tw3_idx;
+#else
+            uint32_t t1 = kissfft_pack_cpx(*tw1);
+            uint32_t t2 = kissfft_pack_cpx(*tw2);
+            uint32_t t3 = kissfft_pack_cpx(*tw3);
+#endif
+            C_BFY4_S0(a, b, t1);
+            C_BFY4_S1(c, d, t2);
+            C_BFY4_S2(t3);
+            uint32_t o0 = C_BFY4_O0(t3);
+            uint32_t o1 = C_BFY4_O1(t3);
+            uint32_t o2 = C_BFY4_O2(t3);
+            uint32_t o3 = C_BFY4_O3(t3);
+            *Fout = kissfft_unpack_cpx(o0);
+            Fout[m] = kissfft_unpack_cpx(o1);
+            Fout[m2] = kissfft_unpack_cpx(o2);
+            Fout[m3] = kissfft_unpack_cpx(o3);
+        }
+        tw1 += fstride;
+        tw2 += fstride*2;
+        tw3 += fstride*3;
+    #ifdef KISSFFT_USE_TWIDDLE_CACHE
+        tw1_idx += tw1_step;
+        tw2_idx += tw2_step;
+        tw3_idx += tw3_step;
+    #endif
+    #else
+    #ifdef KISSFFT_USE_IM_CUSTOM
+        {
+            kiss_fft_cpx f0 = *Fout;
+            kiss_fft_cpx f5 = *Fout;
+            C_MULACC(f0, Fout[m2], *tw2);
+            C_MULSUB(f5, Fout[m2], *tw2);
+            *Fout = f0;
+            scratch[5] = f5;
+        }
+    #else
+        C_SUB( scratch[5] , *Fout, scratch[1] );
+        C_ADDTO(*Fout, scratch[1]);
+    #endif
+        C_ADD( scratch[3] , scratch[0] , scratch[2] );
+        C_SUB( scratch[4] , scratch[0] , scratch[2] );
+        C_SUB( Fout[m2], *Fout, scratch[3] );
+        tw1 += fstride;
+        tw2 += fstride*2;
+        tw3 += fstride*3;
+        C_ADDTO( *Fout , scratch[3] );
+
+        if(st->inverse) {
+            Fout[m].r = scratch[5].r - scratch[4].i;
+            Fout[m].i = scratch[5].i + scratch[4].r;
+            Fout[m3].r = scratch[5].r + scratch[4].i;
+            Fout[m3].i = scratch[5].i - scratch[4].r;
+        }else{
+            Fout[m].r = scratch[5].r + scratch[4].i;
+            Fout[m].i = scratch[5].i - scratch[4].r;
+            Fout[m3].r = scratch[5].r - scratch[4].i;
+            Fout[m3].i = scratch[5].i + scratch[4].r;
+        }
+#endif
+        ++Fout;
+    }
+#else
+    do {
+    #ifndef KISSFFT_USE_BFY4_SCALE
+        C_FIXDIV(*Fout,4); C_FIXDIV(Fout[m],4); C_FIXDIV(Fout[m2],4); C_FIXDIV(Fout[m3],4);
+    #endif
+
+    #ifndef KISSFFT_USE_BFY4
+        C_MUL(scratch[0],Fout[m] , *tw1 );
+        C_MUL(scratch[1],Fout[m2] , *tw2 );
+        C_MUL(scratch[2],Fout[m3] , *tw3 );
+    #endif
+
+    #ifdef KISSFFT_USE_BFY4
+        {
+            uint32_t a = kissfft_pack_cpx(*Fout);
+            uint32_t b = kissfft_pack_cpx(Fout[m]);
+            uint32_t c = kissfft_pack_cpx(Fout[m2]);
+            uint32_t d = kissfft_pack_cpx(Fout[m3]);
+#ifdef KISSFFT_USE_TWIDDLE_CACHE
+            uint32_t t1 = (uint32_t)tw1_idx;
+            uint32_t t2 = (uint32_t)tw2_idx;
+            uint32_t t3 = (uint32_t)tw3_idx;
+#else
+            uint32_t t1 = kissfft_pack_cpx(*tw1);
+            uint32_t t2 = kissfft_pack_cpx(*tw2);
+            uint32_t t3 = kissfft_pack_cpx(*tw3);
+#endif
+            C_BFY4_S0(a, b, t1);
+            C_BFY4_S1(c, d, t2);
+            C_BFY4_S2(t3);
+            uint32_t o0 = C_BFY4_O0(t3);
+            uint32_t o1 = C_BFY4_O1(t3);
+            uint32_t o2 = C_BFY4_O2(t3);
+            uint32_t o3 = C_BFY4_O3(t3);
+            *Fout = kissfft_unpack_cpx(o0);
+            Fout[m] = kissfft_unpack_cpx(o1);
+            Fout[m2] = kissfft_unpack_cpx(o2);
+            Fout[m3] = kissfft_unpack_cpx(o3);
+        }
+        tw1 += fstride;
+        tw2 += fstride*2;
+        tw3 += fstride*3;
+    #ifdef KISSFFT_USE_TWIDDLE_CACHE
+        tw1_idx += tw1_step;
+        tw2_idx += tw2_step;
+        tw3_idx += tw3_step;
+    #endif
+    #else
+    #ifdef KISSFFT_USE_IM_CUSTOM
+        {
+            kiss_fft_cpx f0 = *Fout;
+            kiss_fft_cpx f5 = *Fout;
+            C_MULACC(f0, Fout[m2], *tw2);
+            C_MULSUB(f5, Fout[m2], *tw2);
+            *Fout = f0;
+            scratch[5] = f5;
+        }
+    #else
+        C_SUB( scratch[5] , *Fout, scratch[1] );
+        C_ADDTO(*Fout, scratch[1]);
+    #endif
+        C_ADD( scratch[3] , scratch[0] , scratch[2] );
+        C_SUB( scratch[4] , scratch[0] , scratch[2] );
+        C_SUB( Fout[m2], *Fout, scratch[3] );
+        tw1 += fstride;
+        tw2 += fstride*2;
+        tw3 += fstride*3;
+        C_ADDTO( *Fout , scratch[3] );
+
+        if(st->inverse) {
+            Fout[m].r = scratch[5].r - scratch[4].i;
+            Fout[m].i = scratch[5].i + scratch[4].r;
+            Fout[m3].r = scratch[5].r + scratch[4].i;
+            Fout[m3].i = scratch[5].i - scratch[4].r;
+        }else{
+            Fout[m].r = scratch[5].r + scratch[4].i;
+            Fout[m].i = scratch[5].i - scratch[4].r;
+            Fout[m3].r = scratch[5].r - scratch[4].i;
+            Fout[m3].i = scratch[5].i + scratch[4].r;
+        }
+#endif
         ++Fout;
     }while(--k);
+#endif
 }
 
 static void kf_bfly3(
@@ -163,8 +496,13 @@ static void kf_bfly5(
         C_ADD( scratch[8],scratch[2],scratch[3]);
         C_SUB( scratch[9],scratch[2],scratch[3]);
 
+    #ifdef KISSFFT_USE_IM_CUSTOM
+        C_ADDTO(*Fout0, scratch[7]);
+        C_ADDTO(*Fout0, scratch[8]);
+    #else
         Fout0->r += scratch[7].r + scratch[8].r;
         Fout0->i += scratch[7].i + scratch[8].i;
+    #endif
 
         scratch[5].r = scratch[0].r + S_MUL(scratch[7].r,ya.r) + S_MUL(scratch[8].r,yb.r);
         scratch[5].i = scratch[0].i + S_MUL(scratch[7].i,ya.r) + S_MUL(scratch[8].i,yb.r);
@@ -222,8 +560,12 @@ static void kf_bfly_generic(
             for (q=1;q<p;++q ) {
                 twidx += fstride * k;
                 if (twidx>=Norig) twidx-=Norig;
+#ifdef KISSFFT_USE_IM_CUSTOM
+                C_MULACC( Fout[ k ] , scratch[q] , twiddles[twidx] );
+#else
                 C_MUL(t,scratch[q] , twiddles[twidx] );
                 C_ADDTO( Fout[ k ] ,t);
+#endif
             }
             k += m;
         }
@@ -374,6 +716,26 @@ kiss_fft_cfg kiss_fft_alloc(int nfft,int inverse_fft,void * mem,size_t * lenmem 
 
     return st;
 }
+
+#ifdef KISSFFT_USE_TWIDDLE_CACHE
+void kiss_fft_hw_load_twiddles(kiss_fft_cfg st)
+{
+#if defined(KISSFFT_USE_IM_CUSTOM) && (FIXED_POINT==16) && defined(__riscv)
+    int nfft = st->nfft;
+    for (int i = 0; i < nfft; ++i) {
+        uint32_t v = kissfft_pack_cpx(st->twiddles[i]);
+        kissfft_twld_u32((uint32_t)i, v);
+    }
+    uint32_t mode = 1;
+#ifdef KISSFFT_USE_BFY4_SCALE
+    mode |= 2;
+#endif
+    kissfft_twcfg_u32(mode);
+#else
+    (void)st;
+#endif
+}
+#endif
 
 
 void kiss_fft_stride(kiss_fft_cfg st,const kiss_fft_cpx *fin,kiss_fft_cpx *fout,int in_stride)
