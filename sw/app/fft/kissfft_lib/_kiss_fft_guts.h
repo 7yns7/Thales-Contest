@@ -70,10 +70,179 @@ struct kiss_fft_state{
 #   define sround( x )  (kiss_fft_scalar)( ( (x) + (1<<(FRACBITS-1)) ) >> FRACBITS )
 
 #   define S_MUL(a,b) sround( smul(a,b) )
+#if defined(KISSFFT_USE_IM_CUSTOM) && (FIXED_POINT==16) && defined(__riscv)
+static inline uint32_t kissfft_pack_cpx(kiss_fft_cpx a) {
+    return ((uint16_t)a.r) | ((uint32_t)(uint16_t)a.i << 16);
+}
 
+static inline kiss_fft_cpx kissfft_unpack_cpx(uint32_t v) {
+    kiss_fft_cpx r;
+    r.r = (int16_t)(v & 0xFFFFu);
+    r.i = (int16_t)(v >> 16);
+    return r;
+}
+
+static inline uint32_t kissfft_cadd_u32(uint32_t a, uint32_t b) {
+    uint32_t r;
+    __asm__ volatile (".insn r 0x0B, 0, 0x00, %0, %1, %2" : "=r"(r) : "r"(a), "r"(b));
+    return r;
+}
+
+static inline uint32_t kissfft_csub_u32(uint32_t a, uint32_t b) {
+    uint32_t r;
+    __asm__ volatile (".insn r 0x0B, 1, 0x00, %0, %1, %2" : "=r"(r) : "r"(a), "r"(b));
+    return r;
+}
+
+static inline uint32_t kissfft_cmul_u32(uint32_t a, uint32_t b) {
+    uint32_t r;
+    __asm__ volatile (".insn r 0x0B, 2, 0x00, %0, %1, %2" : "=r"(r) : "r"(a), "r"(b));
+    return r;
+}
+
+static inline uint32_t kissfft_cmadd_u32(uint32_t acc, uint32_t a, uint32_t b) {
+    __asm__ volatile (".insn r 0x0B, 3, 0x00, %0, %1, %2" : "+r"(acc) : "r"(a), "r"(b));
+    return acc;
+}
+
+static inline uint32_t kissfft_cmsub_u32(uint32_t acc, uint32_t a, uint32_t b) {
+    __asm__ volatile (".insn r 0x0B, 4, 0x00, %0, %1, %2" : "+r"(acc) : "r"(a), "r"(b));
+    return acc;
+}
+
+static inline void kissfft_twld_u32(uint32_t idx, uint32_t val) {
+    __asm__ volatile (".insn r 0x0B, 5, 0x00, x0, %0, %1" :: "r"(idx), "r"(val));
+}
+
+static inline void kissfft_twcfg_u32(uint32_t mode) {
+    uint32_t z = 0;
+    __asm__ volatile (".insn r 0x0B, 6, 0x00, x0, %0, %1" :: "r"(mode), "r"(z));
+}
+
+static inline uint32_t kissfft_bfy2_lo_u32(uint32_t a, uint32_t b, uint32_t tw) {
+    uint32_t r;
+    __asm__ volatile (".insn r4 0x2B, 0, 0, %0, %1, %2, %3" : "=r"(r) : "r"(a), "r"(b), "r"(tw));
+    return r;
+}
+
+static inline uint32_t kissfft_bfy2_hi_u32(uint32_t dep) {
+    uint32_t r;
+    __asm__ volatile (".insn r4 0x2B, 1, 0, %0, %1, %1, %1" : "=r"(r) : "r"(dep));
+    return r;
+}
+
+static inline void kissfft_bfy4_s0(uint32_t a, uint32_t b, uint32_t t1) {
+    uint32_t tmp;
+    __asm__ volatile (".insn r4 0x5B, 0, 0, %0, %1, %2, %3" : "=r"(tmp) : "r"(a), "r"(b), "r"(t1));
+    (void)tmp;
+}
+
+static inline void kissfft_bfy4_s1(uint32_t c, uint32_t d, uint32_t t2) {
+    uint32_t tmp;
+    __asm__ volatile (".insn r4 0x5B, 1, 0, %0, %1, %2, %3" : "=r"(tmp) : "r"(c), "r"(d), "r"(t2));
+    (void)tmp;
+}
+
+static inline void kissfft_bfy4_s2(uint32_t t3) {
+    uint32_t z = 0;
+    uint32_t tmp;
+    __asm__ volatile (".insn r4 0x5B, 2, 0, %0, %1, %2, %3" : "=r"(tmp) : "r"(z), "r"(z), "r"(t3));
+    (void)tmp;
+}
+
+static inline uint32_t kissfft_bfy4_o0(uint32_t dep) {
+    uint32_t r;
+    __asm__ volatile (".insn r4 0x5B, 3, 0, %0, %1, %1, %1" : "=r"(r) : "r"(dep));
+    return r;
+}
+
+static inline uint32_t kissfft_bfy4_o1(uint32_t dep) {
+    uint32_t r;
+    __asm__ volatile (".insn r4 0x5B, 4, 0, %0, %1, %1, %1" : "=r"(r) : "r"(dep));
+    return r;
+}
+
+static inline uint32_t kissfft_bfy4_o2(uint32_t dep) {
+    uint32_t r;
+    __asm__ volatile (".insn r4 0x5B, 5, 0, %0, %1, %1, %1" : "=r"(r) : "r"(dep));
+    return r;
+}
+
+static inline uint32_t kissfft_bfy4_o3(uint32_t dep) {
+    uint32_t r;
+    __asm__ volatile (".insn r4 0x5B, 6, 0, %0, %1, %1, %1" : "=r"(r) : "r"(dep));
+    return r;
+}
+
+#   define C_MUL(m,a,b) \
+      do{ \
+          uint32_t _a = kissfft_pack_cpx(a); \
+          uint32_t _b = kissfft_pack_cpx(b); \
+          (m) = kissfft_unpack_cpx(kissfft_cmul_u32(_a, _b)); \
+      }while(0)
+
+#   define C_ADD(res,a,b) \
+      do { \
+          uint32_t _a = kissfft_pack_cpx(a); \
+          uint32_t _b = kissfft_pack_cpx(b); \
+          (res) = kissfft_unpack_cpx(kissfft_cadd_u32(_a, _b)); \
+      }while(0)
+
+#   define C_SUB(res,a,b) \
+      do { \
+          uint32_t _a = kissfft_pack_cpx(a); \
+          uint32_t _b = kissfft_pack_cpx(b); \
+          (res) = kissfft_unpack_cpx(kissfft_csub_u32(_a, _b)); \
+      }while(0)
+
+#   define C_ADDTO(res,a) \
+      do { \
+          uint32_t _r = kissfft_pack_cpx(res); \
+          uint32_t _a = kissfft_pack_cpx(a); \
+          (res) = kissfft_unpack_cpx(kissfft_cadd_u32(_r, _a)); \
+      }while(0)
+
+#   define C_SUBFROM(res,a) \
+      do { \
+          uint32_t _r = kissfft_pack_cpx(res); \
+          uint32_t _a = kissfft_pack_cpx(a); \
+          (res) = kissfft_unpack_cpx(kissfft_csub_u32(_r, _a)); \
+      }while(0)
+
+#   define C_MULACC(res,a,b) \
+      do{ \
+          uint32_t _acc = kissfft_pack_cpx(res); \
+          uint32_t _a = kissfft_pack_cpx(a); \
+          uint32_t _b = kissfft_pack_cpx(b); \
+          (res) = kissfft_unpack_cpx(kissfft_cmadd_u32(_acc, _a, _b)); \
+      }while(0)
+
+#   define C_MULSUB(res,a,b) \
+      do{ \
+          uint32_t _acc = kissfft_pack_cpx(res); \
+          uint32_t _a = kissfft_pack_cpx(a); \
+          uint32_t _b = kissfft_pack_cpx(b); \
+          (res) = kissfft_unpack_cpx(kissfft_cmsub_u32(_acc, _a, _b)); \
+      }while(0)
+
+#   define C_BFY2_LO(a,b,tw) kissfft_bfy2_lo_u32((a),(b),(tw))
+#   define C_BFY2_HI(dep) kissfft_bfy2_hi_u32((dep))
+#   define C_BFY4_S0(a,b,t1) kissfft_bfy4_s0((a),(b),(t1))
+#   define C_BFY4_S1(c,d,t2) kissfft_bfy4_s1((c),(d),(t2))
+#   define C_BFY4_S2(t3) kissfft_bfy4_s2((t3))
+#   define C_BFY4_O0(dep) kissfft_bfy4_o0((dep))
+#   define C_BFY4_O1(dep) kissfft_bfy4_o1((dep))
+#   define C_BFY4_O2(dep) kissfft_bfy4_o2((dep))
+#   define C_BFY4_O3(dep) kissfft_bfy4_o3((dep))
+#else
 #   define C_MUL(m,a,b) \
       do{ (m).r = sround( smul((a).r,(b).r) - smul((a).i,(b).i) ); \
           (m).i = sround( smul((a).r,(b).i) + smul((a).i,(b).r) ); }while(0)
+#   define C_MULACC(res,a,b) \
+    do{ kiss_fft_cpx _t; C_MUL(_t, a, b); C_ADDTO(res, _t); }while(0)
+#   define C_MULSUB(res,a,b) \
+    do{ kiss_fft_cpx _t; C_MUL(_t, a, b); C_SUBFROM(res, _t); }while(0)
+#endif
 
 #   define DIVSCALAR(x,k) \
     (x) = sround( smul(  x, SAMP_MAX/k ) )
@@ -102,31 +271,39 @@ struct kiss_fft_state{
 #  define CHECK_OVERFLOW_OP(a,op,b) /* noop */
 #endif
 
+#ifndef C_ADD
 #define  C_ADD( res, a,b)\
     do { \
         CHECK_OVERFLOW_OP((a).r,+,(b).r)\
         CHECK_OVERFLOW_OP((a).i,+,(b).i)\
         (res).r=(a).r+(b).r;  (res).i=(a).i+(b).i; \
     }while(0)
+#endif
+#ifndef C_SUB
 #define  C_SUB( res, a,b)\
     do { \
         CHECK_OVERFLOW_OP((a).r,-,(b).r)\
         CHECK_OVERFLOW_OP((a).i,-,(b).i)\
         (res).r=(a).r-(b).r;  (res).i=(a).i-(b).i; \
     }while(0)
+#endif
+#ifndef C_ADDTO
 #define C_ADDTO( res , a)\
     do { \
         CHECK_OVERFLOW_OP((res).r,+,(a).r)\
         CHECK_OVERFLOW_OP((res).i,+,(a).i)\
         (res).r += (a).r;  (res).i += (a).i;\
     }while(0)
+#endif
 
+#ifndef C_SUBFROM
 #define C_SUBFROM( res , a)\
     do {\
         CHECK_OVERFLOW_OP((res).r,-,(a).r)\
         CHECK_OVERFLOW_OP((res).i,-,(a).i)\
         (res).r -= (a).r;  (res).i -= (a).i; \
     }while(0)
+#endif
 
 
 #ifdef FIXED_POINT

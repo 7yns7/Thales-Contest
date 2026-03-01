@@ -479,6 +479,23 @@ package ariane_pkg;
     ANDN,
     ORN,
     XNOR,
+    // Packed complex int16 operations (Q15)
+    CADD16,
+    CSUB16,
+    CMUL16,
+    CMADD16,
+    CMSUB16,
+    TWLD,
+    TWCFG,
+    BFY2,
+    BFY2H,
+    BFY4_S0,
+    BFY4_S1,
+    BFY4_S2,
+    BFY4_O0,
+    BFY4_O1,
+    BFY4_O2,
+    BFY4_O3,
     // Accelerator operations
     ACCEL_OP,
     ACCEL_OP_FS1,
@@ -553,6 +570,15 @@ package ariane_pkg;
       [VFCPKAB_S : VFCPKCD_D]:
       return 1'b1;  // Vectorial FP cast and pack ops
       default: return 1'b0;  // all other ops
+    endcase
+  endfunction
+
+  // function used in issue_read_operands
+  // indicates rs3 is a GPR source (encoded in rd field)
+  function automatic logic is_rs3_gpr(input fu_op op);
+    unique case (op)
+      CMADD16, CMSUB16, BFY2, BFY4_S0, BFY4_S1, BFY4_S2: return 1'b1;
+      default:          return 1'b0;
     endcase
   endfunction
 

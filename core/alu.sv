@@ -54,6 +54,65 @@ module alu
   logic [CVA6Cfg.XLEN-1:0] brev8_reversed;
   logic [            31:0] unzip_gen;
   logic [            31:0] zip_gen;
+
+  // --------------------------
+  // Packed complex int16 (Q15)
+  // --------------------------
+  function automatic logic signed [15:0] q15_round(input logic signed [31:0] x);
+    logic signed [31:0] tmp;
+    begin
+      tmp = x + 32'sd16384;
+      q15_round = $signed(tmp) >>> 15;
+    end
+  endfunction
+
+  logic signed [15:0] cpx_a_r, cpx_a_i, cpx_b_r, cpx_b_i;
+  logic signed [15:0] cpx_acc_r, cpx_acc_i;
+  logic signed [31:0] cpx_mul_rr, cpx_mul_ii, cpx_mul_ri, cpx_mul_ir;
+  logic signed [31:0] cpx_mul_real, cpx_mul_imag;
+  logic signed [16:0] cpx_add_r, cpx_add_i;
+  logic signed [16:0] cpx_sub_r, cpx_sub_i;
+  logic signed [15:0] cpx_mul_real_q15, cpx_mul_imag_q15;
+  logic signed [16:0] cpx_madd_r, cpx_madd_i;
+  logic signed [16:0] cpx_msub_r, cpx_msub_i;
+  logic [31:0]        cpx_add_packed;
+  logic [31:0]        cpx_sub_packed;
+  logic [31:0]        cpx_mul_packed;
+  logic [31:0]        cpx_madd_packed;
+  logic [31:0]        cpx_msub_packed;
+
+  assign cpx_a_r = fu_data_i.operand_a[15:0];
+  assign cpx_a_i = fu_data_i.operand_a[31:16];
+  assign cpx_b_r = fu_data_i.operand_b[15:0];
+  assign cpx_b_i = fu_data_i.operand_b[31:16];
+  assign cpx_acc_r = fu_data_i.imm[15:0];
+  assign cpx_acc_i = fu_data_i.imm[31:16];
+
+  assign cpx_add_r = cpx_a_r + cpx_b_r;
+  assign cpx_add_i = cpx_a_i + cpx_b_i;
+  assign cpx_sub_r = cpx_a_r - cpx_b_r;
+  assign cpx_sub_i = cpx_a_i - cpx_b_i;
+
+  assign cpx_add_packed = {cpx_add_i[15:0], cpx_add_r[15:0]};
+  assign cpx_sub_packed = {cpx_sub_i[15:0], cpx_sub_r[15:0]};
+
+  assign cpx_mul_rr   = cpx_a_r * cpx_b_r;
+  assign cpx_mul_ii   = cpx_a_i * cpx_b_i;
+  assign cpx_mul_ri   = cpx_a_r * cpx_b_i;
+  assign cpx_mul_ir   = cpx_a_i * cpx_b_r;
+  assign cpx_mul_real = cpx_mul_rr - cpx_mul_ii;
+  assign cpx_mul_imag = cpx_mul_ri + cpx_mul_ir;
+
+  assign cpx_mul_real_q15 = q15_round(cpx_mul_real);
+  assign cpx_mul_imag_q15 = q15_round(cpx_mul_imag);
+  assign cpx_mul_packed = {cpx_mul_imag_q15, cpx_mul_real_q15};
+
+  assign cpx_madd_r = cpx_mul_real_q15 + cpx_acc_r;
+  assign cpx_madd_i = cpx_mul_imag_q15 + cpx_acc_i;
+  assign cpx_msub_r = cpx_acc_r - cpx_mul_real_q15;
+  assign cpx_msub_i = cpx_acc_i - cpx_mul_imag_q15;
+  assign cpx_madd_packed = {cpx_madd_i[15:0], cpx_madd_r[15:0]};
+  assign cpx_msub_packed = {cpx_msub_i[15:0], cpx_msub_r[15:0]};
   // bit reverse operand_a for left shifts and bit counting
   generate
     genvar k;
@@ -312,6 +371,17 @@ module alu
       XORL, XNOR: result_o = fu_data_i.operand_a ^ operand_b_neg[CVA6Cfg.XLEN:1];
       // Adder Operations
       ADD, SUB, ADDUW, SH1ADD, SH2ADD, SH3ADD: result_o = adder_result;
+      // Packed complex int16 operations
+      CADD16:
+      result_o = (CVA6Cfg.IS_XLEN64) ? {{CVA6Cfg.XLEN - 32{1'b0}}, cpx_add_packed} : cpx_add_packed;
+      CSUB16:
+      result_o = (CVA6Cfg.IS_XLEN64) ? {{CVA6Cfg.XLEN - 32{1'b0}}, cpx_sub_packed} : cpx_sub_packed;
+      CMUL16:
+      result_o = (CVA6Cfg.IS_XLEN64) ? {{CVA6Cfg.XLEN - 32{1'b0}}, cpx_mul_packed} : cpx_mul_packed;
+      CMADD16:
+      result_o = (CVA6Cfg.IS_XLEN64) ? {{CVA6Cfg.XLEN - 32{1'b0}}, cpx_madd_packed} : cpx_madd_packed;
+      CMSUB16:
+      result_o = (CVA6Cfg.IS_XLEN64) ? {{CVA6Cfg.XLEN - 32{1'b0}}, cpx_msub_packed} : cpx_msub_packed;
       // Shift Operations
       SLL, SRL, SRA: result_o = (CVA6Cfg.IS_XLEN64) ? shift_result : shift_result32;
       // Comparison Operations

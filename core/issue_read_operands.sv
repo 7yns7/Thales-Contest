@@ -621,11 +621,15 @@ module issue_read_operands
     ) ? 1'b1 : ((rd_clobber_gpr[issue_instr_i[i].rs2] != CSR) ||
                 (CVA6Cfg.RVS && issue_instr_i[i].op == SFENCE_VMA)));
 
-    assign rs3_has_raw[i] = ((CVA6Cfg.FpPresent && is_imm_fpr(
-        issue_instr_i[i].op
-    )) ? rd_clobber_fpr[issue_instr_i[i].result[REG_ADDR_SIZE-1:0]] != NONE : 0);
+    assign rs3_has_raw[i] = ariane_pkg::is_rs3_gpr(issue_instr_i[i].op) ?
+      (rd_clobber_gpr[issue_instr_i[i].result[REG_ADDR_SIZE-1:0]] != NONE) :
+      ((CVA6Cfg.FpPresent && is_imm_fpr(
+      issue_instr_i[i].op
+    )) ? rd_clobber_fpr[issue_instr_i[i].result[REG_ADDR_SIZE-1:0]] != NONE : 1'b0);
 
-    assign rs3_valid[i] = rs3_available[i];
+    assign rs3_valid[i] = rs3_available[i] && (ariane_pkg::is_rs3_gpr(
+      issue_instr_i[i].op
+    ) ? (rd_clobber_gpr[issue_instr_i[i].result[REG_ADDR_SIZE-1:0]] != CSR) : 1'b1);
     assign rs3_fpr[i] = (CVA6Cfg.FpPresent && ariane_pkg::is_imm_fpr(issue_instr_i[i].op));
 
   end
@@ -664,7 +668,7 @@ module issue_read_operands
         end
       end
 
-      if (rs3_has_raw[i] && rs3_fpr[i]) begin
+      if (rs3_has_raw[i]) begin
         if (rs3_valid[i]) begin
           forward_rs3[i] = 1'b1;
         end else begin  // the operand is not available -> stall
@@ -740,9 +744,13 @@ module issue_read_operands
       // immediates are the third operands in the store case
       // for FP operations, the imm field can also be the third operand from the regfile
       if (OPERANDS_PER_INSTR == 3) begin
-        fu_data_n[i].imm = (CVA6Cfg.FpPresent && is_imm_fpr(issue_instr_i[i].op)) ?
-            {{CVA6Cfg.XLEN - CVA6Cfg.FLen{1'b0}}, operand_c_regfile[i]} :
-            issue_instr_i[i].op == OFFLOAD ? operand_c_regfile[i] : issue_instr_i[i].result;
+        if (CVA6Cfg.FpPresent && is_imm_fpr(issue_instr_i[i].op)) begin
+          fu_data_n[i].imm = {{CVA6Cfg.XLEN - CVA6Cfg.FLen{1'b0}}, operand_c_regfile[i]};
+        end else if (ariane_pkg::is_rs3_gpr(issue_instr_i[i].op)) begin
+          fu_data_n[i].imm = operand_c_regfile[i];
+        end else begin
+          fu_data_n[i].imm = issue_instr_i[i].op == OFFLOAD ? operand_c_regfile[i] : issue_instr_i[i].result;
+        end
       end else begin
         fu_data_n[i].imm = (CVA6Cfg.FpPresent && is_imm_fpr(issue_instr_i[i].op)) ?
             {{CVA6Cfg.XLEN - CVA6Cfg.FLen{1'b0}}, operand_c_regfile[i]} : issue_instr_i[i].result;
@@ -761,7 +769,8 @@ module issue_read_operands
       if (forward_rs2[i]) begin
         fu_data_n[i].operand_b = rs2_res[i];
       end
-      if ((CVA6Cfg.FpPresent || (CVA6Cfg.CvxifEn && OPERANDS_PER_INSTR == 3)) && forward_rs3[i]) begin
+      if ((CVA6Cfg.FpPresent || (CVA6Cfg.CvxifEn && OPERANDS_PER_INSTR == 3) ||
+          ariane_pkg::is_rs3_gpr(issue_instr_i[i].op)) && forward_rs3[i]) begin
         fu_data_n[i].imm = imm_forward_rs3;
       end
 

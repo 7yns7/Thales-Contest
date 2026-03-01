@@ -43,33 +43,46 @@ module cvxif_example_coprocessor
   x_issue_resp_t issue_resp;
   logic issue_valid, issue_ready;
 
-  // Register interface signals
-  x_register_t register;
-  logic register_valid;
+    // Register interface signals
+    x_register_t register;
+    logic register_valid;
 
-  // Decoder and alu signals
-  registers_t registers;
-  opcode_t opcode;
-  hartid_t issue_hartid, hartid;
-  id_t issue_id, id;
-  logic [4:0] issue_rd, rd;
-  logic [XLEN-1:0] result;
-  logic            we;
+    // Decoder and alu signals
+    registers_t registers;
+    opcode_t opcode;
+    hartid_t issue_hartid, hartid;
+    id_t issue_id, id;
+    logic [4:0] issue_rd, rd;
+    logic [XLEN-1:0] result;
+    logic            we;
 
-  // Issue and Register interface
-  // Mandatory when X_ISSUE_REGISTER_SPLIT = 0
-  assign cvxif_resp_o.compressed_ready = compressed_ready;
-  assign cvxif_resp_o.compressed_resp  = compressed_resp;
-  assign cvxif_resp_o.issue_ready      = issue_ready;
-  assign cvxif_resp_o.issue_resp       = issue_resp;
-  assign cvxif_resp_o.register_ready   = cvxif_resp_o.issue_ready;
+    // Commit / result flow control
+    x_commit_t commit;
+    logic      commit_valid;
+    logic      result_ready;
+    logic      issue_fire;
+    logic      result_block;
 
-  assign compressed_req                = cvxif_req_i.compressed_req;
-  assign compressed_valid              = cvxif_req_i.compressed_valid;
-  assign issue_req                     = cvxif_req_i.issue_req;
-  assign issue_valid                   = cvxif_req_i.issue_valid;
-  assign register                      = cvxif_req_i.register;
-  assign register_valid                = cvxif_req_i.register_valid;
+    x_result_t result_buf;
+    logic      result_buf_valid;
+
+    // Issue and Register interface
+    // Mandatory when X_ISSUE_REGISTER_SPLIT = 0
+    assign cvxif_resp_o.compressed_ready = compressed_ready;
+    assign cvxif_resp_o.compressed_resp  = compressed_resp;
+    assign cvxif_resp_o.issue_ready      = issue_ready & ~result_block;
+    assign cvxif_resp_o.issue_resp       = issue_resp;
+    assign cvxif_resp_o.register_ready   = cvxif_resp_o.issue_ready;
+
+    assign compressed_req                = cvxif_req_i.compressed_req;
+    assign compressed_valid              = cvxif_req_i.compressed_valid;
+    assign issue_req                     = cvxif_req_i.issue_req;
+    assign issue_valid                   = cvxif_req_i.issue_valid;
+    assign register                      = cvxif_req_i.register;
+    assign register_valid                = cvxif_req_i.register_valid;
+    assign commit                        = cvxif_req_i.commit;
+    assign commit_valid                  = cvxif_req_i.commit_valid;
+    assign result_ready                  = cvxif_req_i.result_ready;
 
   compressed_instr_decoder #(
       .copro_compressed_resp_t(cvxif_instr_pkg::copro_compressed_resp_t),
@@ -114,38 +127,57 @@ module cvxif_example_coprocessor
       .rd_o            (issue_rd)
   );
 
-  logic alu_valid;
-  // Result interface
-  copro_alu #(
-      .NrRgprPorts(NrRgprPorts),
-      .XLEN(XLEN),
-      .hartid_t(hartid_t),
-      .id_t(id_t),
-      .registers_t(registers_t)
-  ) i_copro_alu (
-      .clk_i      (clk_i),
-      .rst_ni     (rst_ni),
-      .registers_i(registers),
-      .opcode_i   (opcode),
-      .hartid_i   (issue_hartid),
-      .id_i       (issue_id),
-      .rd_i       (issue_rd),
-      .hartid_o   (hartid),
-      .id_o       (id),
-      .result_o   (result),
-      .valid_o    (alu_valid),
-      .rd_o       (rd),
-      .we_o       (we)
-  );
+    logic alu_valid;
+    // Result interface
+    assign issue_fire = issue_valid & cvxif_resp_o.issue_ready & issue_resp.accept;
+    assign result_block = (~result_ready) & (result_buf_valid | alu_valid);
 
-  always_comb begin
-    cvxif_resp_o.result_valid  = alu_valid;  //TODO Should wait for ready from CPU
-    cvxif_resp_o.result.hartid = hartid;
-    cvxif_resp_o.result.id     = id;
-    cvxif_resp_o.result.data   = result;
-    cvxif_resp_o.result.rd     = rd;
-    cvxif_resp_o.result.we     = we;
-  end
+    copro_alu #(
+            .NrRgprPorts(NrRgprPorts),
+            .XLEN(XLEN),
+            .hartid_t(hartid_t),
+            .id_t(id_t),
+            .registers_t(registers_t)
+    ) i_copro_alu (
+            .clk_i      (clk_i),
+            .rst_ni     (rst_ni),
+            .registers_i(issue_fire ? registers : '0),
+            .opcode_i   (issue_fire ? opcode : cvxif_instr_pkg::ILLEGAL),
+            .hartid_i   (issue_fire ? issue_hartid : '0),
+            .id_i       (issue_fire ? issue_id : '0),
+            .rd_i       (issue_fire ? issue_rd : '0),
+            .hartid_o   (hartid),
+            .id_o       (id),
+            .result_o   (result),
+            .valid_o    (alu_valid),
+            .rd_o       (rd),
+            .we_o       (we)
+    );
+
+    always_ff @(posedge clk_i, negedge rst_ni) begin
+        if (~rst_ni) begin
+            result_buf_valid <= 1'b0;
+            result_buf       <= '0;
+        end else if (result_buf_valid && ~result_ready) begin
+            result_buf_valid <= result_buf_valid;
+            result_buf       <= result_buf;
+        end else if (alu_valid) begin
+            result_buf_valid <= 1'b1;
+            result_buf       <= '{hartid: hartid, id: id, data: result, rd: rd, we: we};
+        end else begin
+            result_buf_valid <= 1'b0;
+            result_buf       <= result_buf;
+        end
+    end
+
+    always_comb begin
+        cvxif_resp_o.result_valid = result_buf_valid ? 1'b1 : alu_valid;
+        if (result_buf_valid) begin
+            cvxif_resp_o.result = result_buf;
+        end else begin
+            cvxif_resp_o.result = '{hartid: hartid, id: id, data: result, rd: rd, we: we};
+        end
+    end
 
 
 
