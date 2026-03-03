@@ -133,7 +133,7 @@ void KISS_FFT_API kiss_fft(kiss_fft_cfg cfg,const kiss_fft_cpx *fin,kiss_fft_cpx
  * */
 void KISS_FFT_API kiss_fft_stride(kiss_fft_cfg cfg,const kiss_fft_cpx *fin,kiss_fft_cpx *fout,int fin_stride);
 
-#ifdef KISSFFT_USE_TWIDDLE_CACHE
+#ifdef KISSFFT_USE_TWIDDLE_RF
 void KISS_FFT_API kiss_fft_hw_load_twiddles(kiss_fft_cfg cfg);
 #endif
 

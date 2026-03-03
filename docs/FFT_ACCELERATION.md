@@ -80,7 +80,7 @@ of the base RV32IM core, each one building on the previous:
   │                               │ ● CSUB16   │ │ ● Divider      │ │
   │                               │ ● CMUL16   │ │ ● BFY2 unit    │ │
   │                               │ ● CMADD16  │ │ ● BFY4 unit    │ │
-  │                               │ ● CMSUB16  │ │ ● Twiddle cache│ │
+  │                               │ ● CMSUB16  │ │ ● Twiddle register file│ │
   │                               │            │ │ ● TWLD/TWCFG   │ │
   │                               └────────────┘ └────────────────┘ │
   │                                       │           │              │
@@ -106,8 +106,8 @@ added — this keeps the design contest-compliant.
 | `CMUL16` | Custom-0 (0x0B), f3=2 | ALU | 1 cyc | Packed complex mul (Q15) |
 | `CMADD16` | Custom-0 (0x0B), f3=3 | ALU | 1 cyc | Packed complex mul-add (Q15) |
 | `CMSUB16` | Custom-0 (0x0B), f3=4 | ALU | 1 cyc | Packed complex mul-sub (Q15) |
-| `TWLD` | Custom-0 (0x0B), f3=5 | MULT | 1 cyc | Twiddle cache load |
-| `TWCFG` | Custom-0 (0x0B), f3=6 | MULT | 1 cyc | Twiddle cache config |
+| `TWLD` | Custom-0 (0x0B), f3=5 | MULT | 1 cyc | Twiddle register file load |
+| `TWCFG` | Custom-0 (0x0B), f3=6 | MULT | 1 cyc | Twiddle register file config |
 | `BFY2` | Custom-1 (0x2B), f3=0 | MULT | 2 cyc | Butterfly-2 low output |
 | `BFY2H` | Custom-1 (0x2B), f3=1 | MULT | 1 cyc | Butterfly-2 high output |
 | `BFY4_S0` | Custom-2 (0x5B), f3=0 | MULT | 1 cyc | BFY4 setup: load a,b,tw1 |
@@ -343,7 +343,7 @@ The `BFY4_S2` computation is a **large combinational block** containing:
 ### Concept
 
 The FFT's inner loop repeatedly loads twiddle factors from memory. For N=512,
-there are up to 512 unique twiddle factors. A **hardware twiddle cache** stores
+there are up to 512 unique twiddle factors. A **hardware twiddle register file** stores
 all 512 packed complex values (32 bits each) in flip-flops inside the MULT unit,
 eliminating memory loads entirely.
 
@@ -352,13 +352,13 @@ eliminating memory loads entirely.
 | Mnemonic | funct3 | Action |
 |----------|--------|--------|
 | `TWLD` | 101 | `twiddle_mem[rs1] = rs2` — write one entry |
-| `TWCFG` | 110 | `twiddle_cache_en = rs1[0]; bfy4_scale_en = rs1[1]` — enable/configure |
+| `TWCFG` | 110 | `twiddle_rf_en = rs1[0]; bfy4_scale_en = rs1[1]` — enable/configure |
 
 ### Hardware
 
 ```
   ┌──────────────────────────────────────────────┐
-  │            Twiddle Cache (in mult.sv)         │
+  │            Twiddle Register File (in mult.sv)         │
   │                                              │
   │   twiddle_mem[0..511]  (512 × 32-bit regs)  │
   │                                              │
@@ -448,7 +448,7 @@ This eliminates 8 software instructions per butterfly iteration.
 
 ## Data Flow Diagrams
 
-### Complete BFY4 with Twiddle Cache + Scale — One Butterfly Iteration
+### Complete BFY4 with Twiddle Register File + Scale — One Butterfly Iteration
 
 ```
  Software:                          Hardware (mult.sv):
@@ -493,7 +493,7 @@ This eliminates 8 software instructions per butterfly iteration.
 | Baseline (scalar) | ~50-60 | 3 C_MUL + adds + stores + fixdiv |
 | + Packed ops (Tier 1) | ~30-35 | Pack/unpack overhead |
 | + BFY4 (Tier 3) | ~15-18 | 7 custom insns + 8 load/store |
-| + Twiddle cache (Tier 4) | ~13-16 | Remove twiddle loads |
+| + Twiddle register file (Tier 4) | ~13-16 | Remove twiddle loads |
 | + Scale fusion (Tier 5) | ~11-14 | Remove C_FIXDIV |
 
 ---
@@ -587,7 +587,7 @@ The software uses preprocessor guards to enable/disable each tier:
 #ifdef KISSFFT_USE_IM_CUSTOM     // Tier 1: packed complex ops
 #ifdef KISSFFT_USE_BFY2          // Tier 2: radix-2 butterfly
 #ifdef KISSFFT_USE_BFY4          // Tier 3: radix-4 butterfly
-#ifdef KISSFFT_USE_TWIDDLE_CACHE // Tier 4: twiddle cache
+#ifdef KISSFFT_USE_TWIDDLE_RF // Tier 4: twiddle register file
 #ifdef KISSFFT_USE_BFY4_SCALE    // Tier 5: fused ÷4 scaling
 #ifdef KISSFFT_MANUAL_UNROLL4    // Optimization: loop unrolling
 ```
@@ -603,13 +603,13 @@ CFLAGS += -DKISSFFT_USE_IM_CUSTOM    \
           -DKISSFFT_USE_BFY2         \
           -DKISSFFT_USE_BFY4         \
           -DKISSFFT_MANUAL_UNROLL4   \
-          -DKISSFFT_USE_TWIDDLE_CACHE \
+          -DKISSFFT_USE_TWIDDLE_RF \
           -DKISSFFT_USE_BFY4_SCALE
 ```
 
 And the main application additionally gets:
 ```makefile
-RISCV_CFLAGS += -DKISSFFT_USE_TWIDDLE_CACHE \
+RISCV_CFLAGS += -DKISSFFT_USE_TWIDDLE_RF \
                 -DKISSFFT_USE_BFY4_SCALE
 ```
 
@@ -624,14 +624,14 @@ RISCV_CFLAGS += -DKISSFFT_USE_TWIDDLE_CACHE \
 | `core/include/ariane_pkg.sv` | Added `CADD16`, `CSUB16`, `CMUL16`, `CMADD16`, `CMSUB16`, `TWLD`, `TWCFG`, `BFY2`, `BFY2H`, `BFY4_S0..S2`, `BFY4_O0..O3` to `fu_op` enum. Updated `is_rs3_gpr()` for `CMADD16`, `CMSUB16`, `BFY2`, `BFY4_S0..S2`. |
 | `core/decoder.sv` | Added decode logic for `OpcodeCustom0` (ALU ops + TWLD/TWCFG), `OpcodeCustom1` (BFY2/BFY2H), `OpcodeCustom2` (BFY4_S0..O3). |
 | `core/alu.sv` | Added packed complex arithmetic datapath (`CADD16`, `CSUB16`, `CMUL16`, `CMADD16`, `CMSUB16`) with Q15 rounding. |
-| `core/mult.sv` | Added BFY2 2-cycle pipeline, BFY4 stateful unit (setup/compute/readback), 512-entry twiddle cache, `q15_div4` scaling function, output arbitration. |
+| `core/mult.sv` | Added BFY2 2-cycle pipeline, BFY4 stateful unit (setup/compute/readback), 512-entry twiddle register file, `q15_div4` scaling function, output arbitration. |
 
 ### Software
 
 | File | Changes |
 |------|---------|
 | `sw/app/fft/kissfft_lib/_kiss_fft_guts.h` | Added inline asm intrinsics for all 16 custom instructions. Added pack/unpack helpers. Redefined C_MUL, C_ADD, C_SUB, etc. to use hardware ops. |
-| `sw/app/fft/kissfft_lib/kiss_fft.c` | Modified `kf_bfly4()` to use BFY4 protocol with twiddle cache indices. Added `kiss_fft_hw_load_twiddles()`. Conditional C_FIXDIV removal under `KISSFFT_USE_BFY4_SCALE`. |
+| `sw/app/fft/kissfft_lib/kiss_fft.c` | Modified `kf_bfly4()` to use BFY4 protocol with twiddle register file indices. Added `kiss_fft_hw_load_twiddles()`. Conditional C_FIXDIV removal under `KISSFFT_USE_BFY4_SCALE`. |
 | `sw/app/fft/fft_int16_main.c` | Added `kiss_fft_hw_load_twiddles(cfg)` call before FFT execution. |
 | `sw/app/Makefile` | Added compile flags for all tiers. Added FORCE dependency for lib rebuild. |
 

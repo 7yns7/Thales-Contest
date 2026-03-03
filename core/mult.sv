@@ -44,10 +44,10 @@ module mult
   localparam int unsigned TWIDDLE_DEPTH = 512;
   localparam int unsigned TWIDDLE_ADDR_BITS = $clog2(TWIDDLE_DEPTH);
   logic [31:0] twiddle_mem [0:TWIDDLE_DEPTH-1];
-  logic twiddle_cache_en_q;
+  logic twiddle_rf_en_q;
   logic bfy4_scale_en_q;
   logic [CVA6Cfg.XLEN-1:0] twiddle_word;
-  assign twiddle_word = (twiddle_cache_en_q) ? twiddle_mem[fu_data_i.imm[TWIDDLE_ADDR_BITS-1:0]] : fu_data_i.imm;
+  assign twiddle_word = (twiddle_rf_en_q) ? twiddle_mem[fu_data_i.imm[TWIDDLE_ADDR_BITS-1:0]] : fu_data_i.imm;
 
   logic mul_valid;
   logic div_valid;
@@ -129,7 +129,7 @@ module mult
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (~rst_ni) begin
-        twiddle_cache_en_q <= 1'b0;
+        twiddle_rf_en_q <= 1'b0;
         bfy4_scale_en_q <= 1'b0;
       bfy_s0_valid_q <= 1'b0;
       bfy_s1_valid_q <= 1'b0;
@@ -151,7 +151,7 @@ module mult
       bfyh_pending_q <= 1'b0;
     end else begin
       if (twcfg_issue) begin
-        twiddle_cache_en_q <= fu_data_i.operand_a[0];
+        twiddle_rf_en_q <= fu_data_i.operand_a[0];
         bfy4_scale_en_q <= fu_data_i.operand_a[1];
       end
       if (twld_issue) begin

@@ -11,10 +11,10 @@
 1. [Modified RTL Files](#modified-rtl-files)
 2. [Instruction Decode Flow](#instruction-decode-flow)
 3. [ALU Datapath — Packed Complex Ops](#alu-datapath--packed-complex-ops)
-4. [MULT Unit — Butterfly & Twiddle Cache](#mult-unit--butterfly--twiddle-cache)
+4. [MULT Unit — Butterfly & Twiddle Register File](#mult-unit--butterfly--twiddle-register-file)
 5. [BFY2 Pipeline Detail](#bfy2-pipeline-detail)
 6. [BFY4 Stateful Machine](#bfy4-stateful-machine)
-7. [Twiddle Cache Memory Map](#twiddle-cache-memory-map)
+7. [Twiddle Register File Memory Map](#twiddle-register-file-memory-map)
 8. [Output Arbitration](#output-arbitration)
 9. [Timing & Synthesis Considerations](#timing--synthesis-considerations)
 
@@ -159,7 +159,7 @@ logic alongside the existing ALU operations:
 
 ---
 
-## MULT Unit — Butterfly & Twiddle Cache
+## MULT Unit — Butterfly & Twiddle Register File
 
 ### Top-level Organization in `mult.sv`
 
@@ -169,7 +169,7 @@ mult.sv
 ├── Standard divider (i_div / serdiv)
 ├── BFY2 pipeline (2-cycle)
 ├── BFY4 stateful unit
-├── Twiddle cache (512 × 32-bit)
+├── Twiddle register file (512 × 32-bit)
 ├── TWLD / TWCFG control
 └── Output arbitration
 ```
@@ -177,15 +177,15 @@ mult.sv
 ### Signal Summary
 
 ```systemverilog
-// Twiddle cache
+// Twiddle register file
 logic [31:0] twiddle_mem [0:511];     // 512-entry cache
-logic twiddle_cache_en_q;             // cache enabled
+logic twiddle_rf_en_q;             // register file enabled
 logic bfy4_scale_en_q;                // ÷4 scaling enabled
 
 // Twiddle word MUX
 // When cache is ON: read from twiddle_mem indexed by imm[8:0]
 // When cache is OFF: pass imm directly (register value)
-assign twiddle_word = twiddle_cache_en_q
+assign twiddle_word = twiddle_rf_en_q
     ? twiddle_mem[fu_data_i.imm[8:0]]
     : fu_data_i.imm;
 
@@ -347,7 +347,7 @@ but removes 8 multiply instructions from software per butterfly.
 
 ---
 
-## Twiddle Cache Memory Map
+## Twiddle Register File Memory Map
 
 ```
  Address    Content
@@ -364,7 +364,7 @@ but removes 8 multiply instructions from software per butterfly.
 ### TWCFG Configuration Register
 
 ```
- Bit 0: twiddle_cache_en  (0=pass-through, 1=use cache)
+ Bit 0: twiddle_rf_en  (0=pass-through, 1=use register file)
  Bit 1: bfy4_scale_en     (0=no scaling, 1=÷4 on BFY4 inputs)
 ```
 
@@ -419,13 +419,13 @@ The `BFY4_S2` combinational block is the widest single-cycle computation:
 | Resource | Estimated Usage | Notes |
 |----------|----------------|-------|
 | LUTs | ~2000-3000 | Multipliers, adders, MUX |
-| FFs | ~2500 | Twiddle cache (512×32) + pipeline regs |
+| FFs | ~2500 | Twiddle register file (512×32) + pipeline regs |
 | DSPs | 0-12 | Depends on synthesis inference |
-| BRAM | 0 | Twiddle cache uses FF (not BRAM) |
+| BRAM | 0 | Twiddle register file uses FF (not BRAM) |
 
 ### Area Optimization Options
 
-- **Twiddle cache → BRAM**: Move `twiddle_mem` to a BRAM block to save ~16K FFs.
+- **Twiddle register file → BRAM**: Move `twiddle_mem` to a BRAM block to save ~16K FFs.
   Would require 1-cycle read latency handling.
 - **BFY4 pipelining**: Split `BFY4_S2` across 2 cycles to reduce critical path.
   Would add 1 cycle latency per butterfly.

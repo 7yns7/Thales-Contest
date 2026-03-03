@@ -45,7 +45,7 @@ int main(void)
 		return 1;
 	}
 
-#ifdef KISSFFT_USE_TWIDDLE_CACHE
+#ifdef KISSFFT_USE_TWIDDLE_RF
 	kiss_fft_hw_load_twiddles(cfg);
 #endif
 

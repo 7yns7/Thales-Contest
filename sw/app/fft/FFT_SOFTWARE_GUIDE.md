@@ -83,7 +83,7 @@ static inline kiss_fft_cpx kissfft_unpack_cpx(uint32_t v) {
 | `kissfft_bfy4_o2(dep)` | `.insn r4 0x5B, 5, 0` | Read output 2 |
 | `kissfft_bfy4_o3(dep)` | `.insn r4 0x5B, 6, 0` | Read output 3 |
 
-### Tier 4 — Twiddle Cache (OpcodeCustom0 = 0x0B)
+### Tier 4 — Twiddle Register File (OpcodeCustom0 = 0x0B)
 
 | Function | Encoding | Description |
 |----------|----------|-------------|
@@ -104,7 +104,7 @@ uint32_t c = kissfft_pack_cpx(Fout[m2]);
 uint32_t d = kissfft_pack_cpx(Fout[m3]);
 
 // 2. Get twiddle factors (indices or packed values)
-uint32_t t1 = (uint32_t)tw1_idx;   // with twiddle cache
+uint32_t t1 = (uint32_t)tw1_idx;   // with twiddle register file
 uint32_t t2 = (uint32_t)tw2_idx;
 uint32_t t3 = (uint32_t)tw3_idx;
 
@@ -135,13 +135,13 @@ without inter-instruction stalls.
 
 ---
 
-## Twiddle Cache Preloading
+## Twiddle Register File Preloading
 
 Before calling `kiss_fft()`, the twiddle factors must be loaded into hardware:
 
 ```c
 // In fft_int16_main.c:
-#ifdef KISSFFT_USE_TWIDDLE_CACHE
+#ifdef KISSFFT_USE_TWIDDLE_RF
     kiss_fft_hw_load_twiddles(cfg);
 #endif
 ```
@@ -187,7 +187,7 @@ This is semantically equivalent but saves ~8 instructions per butterfly iteratio
 | `KISSFFT_USE_BFY2` | 2 | Use BFY2/BFY2H in radix-2 butterfly |
 | `KISSFFT_USE_BFY4` | 3 | Use BFY4 protocol in radix-4 butterfly |
 | `KISSFFT_MANUAL_UNROLL4` | — | Manually unroll radix-4 loop ×2 |
-| `KISSFFT_USE_TWIDDLE_CACHE` | 4 | Use hardware twiddle cache (indices) |
+| `KISSFFT_USE_TWIDDLE_RF` | 4 | Use hardware twiddle register file (indices) |
 | `KISSFFT_USE_BFY4_SCALE` | 5 | Fuse ÷4 scaling into BFY4 hardware |
 | `FIXED_POINT` | — | Use int16 fixed-point (set to 16) |
 
@@ -213,7 +213,7 @@ main application.
 | + Packed complex ops (Tier 1) | ~100,000 |
 | + BFY2 (Tier 2) | ~90,000 |
 | + BFY4 (Tier 3) | ~70,000-80,000 |
-| + Twiddle cache (Tier 4) | Testing needed |
+| + Twiddle register file (Tier 4) | Testing needed |
 | + Fused scaling (Tier 5) | Testing needed |
 
 > **Note**: Tiers 4 and 5 are implemented but performance needs to be validated
