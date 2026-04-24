@@ -630,8 +630,8 @@ RISCV_CFLAGS += -DKISSFFT_USE_TWIDDLE_RF \
 
 | File | Changes |
 |------|---------|
-| `sw/app/fft/kissfft_lib/_kiss_fft_guts.h` | Added inline asm intrinsics for all 16 custom instructions. Added pack/unpack helpers. Redefined C_MUL, C_ADD, C_SUB, etc. to use hardware ops. |
-| `sw/app/fft/kissfft_lib/kiss_fft.c` | Modified `kf_bfly4()` to use BFY4 protocol with twiddle register file indices. Added `kiss_fft_hw_load_twiddles()`. Conditional C_FIXDIV removal under `KISSFFT_USE_BFY4_SCALE`. |
+| `sw/app/fft/kissfft_lib/_kiss_fft_guts.h` | Added inline asm intrinsics for all 16 custom instructions. Added pack/unpack plus direct 32-bit load/store helpers (`kissfft_load_u32`/`kissfft_store_u32`) for hot loops. Redefined C_MUL, C_ADD, C_SUB, etc. to use hardware ops. |
+| `sw/app/fft/kissfft_lib/kiss_fft.c` | Modified `kf_bfly4()` to use BFY4 protocol with twiddle register file indices. Added `kiss_fft_hw_load_twiddles()`. Conditional C_FIXDIV removal under `KISSFFT_USE_BFY4_SCALE`. Added flat FFT-512 scheduling path (non-recursive) with software BFY8 stage fusion (4×BFY2 + 1×BFY4). |
 | `sw/app/fft/fft_int16_main.c` | Added `kiss_fft_hw_load_twiddles(cfg)` call before FFT execution. |
 | `sw/app/Makefile` | Added compile flags for all tiers. Added FORCE dependency for lib rebuild. |
 

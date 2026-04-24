@@ -48,7 +48,20 @@ static inline kiss_fft_cpx kissfft_unpack_cpx(uint32_t v) {
     r.i = (int16_t)(v >> 16);
     return r;
 }
+
+// Direct 32-bit load/store helpers used in hot loops
+static inline uint32_t kissfft_load_u32(const kiss_fft_cpx *p) {
+    return *(const uint32_t*)p;
+}
+
+static inline void kissfft_store_u32(kiss_fft_cpx *p, uint32_t v) {
+    *(uint32_t*)p = v;
+}
 ```
+
+> The BFY2/BFY4 hot paths use `kissfft_load_u32()` / `kissfft_store_u32()` to
+> emit efficient 32-bit memory operations (`lw`/`sw`) and reduce pack/unpack
+> overhead.
 
 ---
 
@@ -98,10 +111,10 @@ The BFY4 instructions **must** be called in this exact sequence:
 
 ```c
 // 1. Load 4 complex values from memory
-uint32_t a = kissfft_pack_cpx(*Fout);
-uint32_t b = kissfft_pack_cpx(Fout[m]);
-uint32_t c = kissfft_pack_cpx(Fout[m2]);
-uint32_t d = kissfft_pack_cpx(Fout[m3]);
+uint32_t a = kissfft_load_u32(Fout);
+uint32_t b = kissfft_load_u32(&Fout[m]);
+uint32_t c = kissfft_load_u32(&Fout[m2]);
+uint32_t d = kissfft_load_u32(&Fout[m3]);
 
 // 2. Get twiddle factors (indices or packed values)
 uint32_t t1 = (uint32_t)tw1_idx;   // with twiddle register file
@@ -120,10 +133,10 @@ uint32_t o2 = C_BFY4_O2(t3);   // Output 2
 uint32_t o3 = C_BFY4_O3(t3);   // Output 3
 
 // 5. Store results back
-*Fout      = kissfft_unpack_cpx(o0);
-Fout[m]    = kissfft_unpack_cpx(o1);
-Fout[m2]   = kissfft_unpack_cpx(o2);
-Fout[m3]   = kissfft_unpack_cpx(o3);
+kissfft_store_u32(Fout, o0);
+kissfft_store_u32(&Fout[m], o1);
+kissfft_store_u32(&Fout[m2], o2);
+kissfft_store_u32(&Fout[m3], o3);
 ```
 
 ### Dependency Chain
@@ -152,7 +165,7 @@ The implementation in `kiss_fft.c`:
 void kiss_fft_hw_load_twiddles(kiss_fft_cfg st) {
     int nfft = st->nfft;
     for (int i = 0; i < nfft; ++i) {
-        uint32_t v = kissfft_pack_cpx(st->twiddles[i]);
+        uint32_t v = kissfft_load_u32(&st->twiddles[i]);
         kissfft_twld_u32((uint32_t)i, v);      // TWLD: twiddle_mem[i] = v
     }
     uint32_t mode = 1;                          // bit0 = cache enable
@@ -162,6 +175,28 @@ void kiss_fft_hw_load_twiddles(kiss_fft_cfg st) {
     kissfft_twcfg_u32(mode);                    // TWCFG
 }
 ```
+
+---
+
+## Flat FFT-512 Path (non-recursive schedule)
+
+`kiss_fft_stride()` uses a dedicated flat path when:
+
+- `st->nfft == 512`
+- `in_stride == 1`
+
+This path applies:
+
+1. Digit-reversal permutation (size 512)
+2. Stage-1 + Stage-2 fused scheduling through a software BFY8 helper:
+    - 4× `kf_bfly2(..., 256, ..., 1)`
+    - 1× `kf_bfly4(..., 64, ..., 2)`
+3. Remaining radix-4 stages:
+    - `kf_bfly4(..., 16, ..., 8)`
+    - `kf_bfly4(..., 4, ..., 32)`
+    - `kf_bfly4(..., 1, ..., 128)`
+
+For any other FFT size/stride, the original recursive `kf_work()` path is used.
 
 ---
 
@@ -213,8 +248,9 @@ main application.
 | + Packed complex ops (Tier 1) | ~100,000 |
 | + BFY2 (Tier 2) | ~90,000 |
 | + BFY4 (Tier 3) | ~70,000-80,000 |
-| + Twiddle register file (Tier 4) | Testing needed |
-| + Fused scaling (Tier 5) | Testing needed |
+| + Twiddle register file (Tier 4) | Implemented |
+| + Fused scaling (Tier 5) | Implemented |
+| + Flat FFT-512 schedule + BFY8 software staging | Implemented (benchmark required per platform) |
 
-> **Note**: Tiers 4 and 5 are implemented but performance needs to be validated
-> by running `make fft` and checking the instruction/cycle counts.
+> **Note**: Exact gains depend on compiler/toolchain and platform (sim vs FPGA).
+> Validate with `make fft` and compare both instruction and cycle counters.

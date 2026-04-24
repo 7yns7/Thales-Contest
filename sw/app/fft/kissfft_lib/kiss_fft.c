@@ -29,13 +29,13 @@ static void kf_bfly2(
 
 #ifdef KISSFFT_USE_BFY2
     {
-        uint32_t a = kissfft_pack_cpx(*Fout);
-        uint32_t b = kissfft_pack_cpx(*Fout2);
-        uint32_t tw = kissfft_pack_cpx(*tw1);
+        uint32_t a = kissfft_load_u32(Fout);
+        uint32_t b = kissfft_load_u32(Fout2);
+        uint32_t tw = kissfft_load_u32(tw1);
         uint32_t lo = C_BFY2_LO(a, b, tw);
             uint32_t hi = C_BFY2_HI(lo);
-        *Fout = kissfft_unpack_cpx(lo);
-        *Fout2 = kissfft_unpack_cpx(hi);
+        kissfft_store_u32(Fout, lo);
+        kissfft_store_u32(Fout2, hi);
     }
 #elif defined(KISSFFT_USE_IM_CUSTOM)
     {
@@ -95,18 +95,18 @@ static void kf_bfly4(
 
     #ifdef KISSFFT_USE_BFY4
         {
-            uint32_t a = kissfft_pack_cpx(*Fout);
-            uint32_t b = kissfft_pack_cpx(Fout[m]);
-            uint32_t c = kissfft_pack_cpx(Fout[m2]);
-            uint32_t d = kissfft_pack_cpx(Fout[m3]);
+            uint32_t a = kissfft_load_u32(Fout);
+            uint32_t b = kissfft_load_u32(&Fout[m]);
+            uint32_t c = kissfft_load_u32(&Fout[m2]);
+            uint32_t d = kissfft_load_u32(&Fout[m3]);
 #ifdef KISSFFT_USE_TWIDDLE_RF
             uint32_t t1 = (uint32_t)tw1_idx;
             uint32_t t2 = (uint32_t)tw2_idx;
             uint32_t t3 = (uint32_t)tw3_idx;
 #else
-            uint32_t t1 = kissfft_pack_cpx(*tw1);
-            uint32_t t2 = kissfft_pack_cpx(*tw2);
-            uint32_t t3 = kissfft_pack_cpx(*tw3);
+            uint32_t t1 = kissfft_load_u32(tw1);
+            uint32_t t2 = kissfft_load_u32(tw2);
+            uint32_t t3 = kissfft_load_u32(tw3);
 #endif
             C_BFY4_S0(a, b, t1);
             C_BFY4_S1(c, d, t2);
@@ -115,10 +115,10 @@ static void kf_bfly4(
             uint32_t o1 = C_BFY4_O1(t3);
             uint32_t o2 = C_BFY4_O2(t3);
             uint32_t o3 = C_BFY4_O3(t3);
-            *Fout = kissfft_unpack_cpx(o0);
-            Fout[m] = kissfft_unpack_cpx(o1);
-            Fout[m2] = kissfft_unpack_cpx(o2);
-            Fout[m3] = kissfft_unpack_cpx(o3);
+            kissfft_store_u32(Fout, o0);
+            kissfft_store_u32(&Fout[m], o1);
+            kissfft_store_u32(&Fout[m2], o2);
+            kissfft_store_u32(&Fout[m3], o3);
         }
         tw1 += fstride;
         tw2 += fstride*2;
@@ -176,18 +176,18 @@ static void kf_bfly4(
 
     #ifdef KISSFFT_USE_BFY4
         {
-            uint32_t a = kissfft_pack_cpx(*Fout);
-            uint32_t b = kissfft_pack_cpx(Fout[m]);
-            uint32_t c = kissfft_pack_cpx(Fout[m2]);
-            uint32_t d = kissfft_pack_cpx(Fout[m3]);
+            uint32_t a = kissfft_load_u32(Fout);
+            uint32_t b = kissfft_load_u32(&Fout[m]);
+            uint32_t c = kissfft_load_u32(&Fout[m2]);
+            uint32_t d = kissfft_load_u32(&Fout[m3]);
 #ifdef KISSFFT_USE_TWIDDLE_RF
             uint32_t t1 = (uint32_t)tw1_idx;
             uint32_t t2 = (uint32_t)tw2_idx;
             uint32_t t3 = (uint32_t)tw3_idx;
 #else
-            uint32_t t1 = kissfft_pack_cpx(*tw1);
-            uint32_t t2 = kissfft_pack_cpx(*tw2);
-            uint32_t t3 = kissfft_pack_cpx(*tw3);
+            uint32_t t1 = kissfft_load_u32(tw1);
+            uint32_t t2 = kissfft_load_u32(tw2);
+            uint32_t t3 = kissfft_load_u32(tw3);
 #endif
             C_BFY4_S0(a, b, t1);
             C_BFY4_S1(c, d, t2);
@@ -196,10 +196,10 @@ static void kf_bfly4(
             uint32_t o1 = C_BFY4_O1(t3);
             uint32_t o2 = C_BFY4_O2(t3);
             uint32_t o3 = C_BFY4_O3(t3);
-            *Fout = kissfft_unpack_cpx(o0);
-            Fout[m] = kissfft_unpack_cpx(o1);
-            Fout[m2] = kissfft_unpack_cpx(o2);
-            Fout[m3] = kissfft_unpack_cpx(o3);
+            kissfft_store_u32(Fout, o0);
+            kissfft_store_u32(&Fout[m], o1);
+            kissfft_store_u32(&Fout[m2], o2);
+            kissfft_store_u32(&Fout[m3], o3);
         }
         tw1 += fstride;
         tw2 += fstride*2;
@@ -260,18 +260,18 @@ static void kf_bfly4(
 
     #ifdef KISSFFT_USE_BFY4
         {
-            uint32_t a = kissfft_pack_cpx(*Fout);
-            uint32_t b = kissfft_pack_cpx(Fout[m]);
-            uint32_t c = kissfft_pack_cpx(Fout[m2]);
-            uint32_t d = kissfft_pack_cpx(Fout[m3]);
+            uint32_t a = kissfft_load_u32(Fout);
+            uint32_t b = kissfft_load_u32(&Fout[m]);
+            uint32_t c = kissfft_load_u32(&Fout[m2]);
+            uint32_t d = kissfft_load_u32(&Fout[m3]);
 #ifdef KISSFFT_USE_TWIDDLE_RF
             uint32_t t1 = (uint32_t)tw1_idx;
             uint32_t t2 = (uint32_t)tw2_idx;
             uint32_t t3 = (uint32_t)tw3_idx;
 #else
-            uint32_t t1 = kissfft_pack_cpx(*tw1);
-            uint32_t t2 = kissfft_pack_cpx(*tw2);
-            uint32_t t3 = kissfft_pack_cpx(*tw3);
+            uint32_t t1 = kissfft_load_u32(tw1);
+            uint32_t t2 = kissfft_load_u32(tw2);
+            uint32_t t3 = kissfft_load_u32(tw3);
 #endif
             C_BFY4_S0(a, b, t1);
             C_BFY4_S1(c, d, t2);
@@ -280,10 +280,10 @@ static void kf_bfly4(
             uint32_t o1 = C_BFY4_O1(t3);
             uint32_t o2 = C_BFY4_O2(t3);
             uint32_t o3 = C_BFY4_O3(t3);
-            *Fout = kissfft_unpack_cpx(o0);
-            Fout[m] = kissfft_unpack_cpx(o1);
-            Fout[m2] = kissfft_unpack_cpx(o2);
-            Fout[m3] = kissfft_unpack_cpx(o3);
+            kissfft_store_u32(Fout, o0);
+            kissfft_store_u32(&Fout[m], o1);
+            kissfft_store_u32(&Fout[m2], o2);
+            kissfft_store_u32(&Fout[m3], o3);
         }
         tw1 += fstride;
         tw2 += fstride*2;
@@ -343,18 +343,18 @@ static void kf_bfly4(
 
     #ifdef KISSFFT_USE_BFY4
         {
-            uint32_t a = kissfft_pack_cpx(*Fout);
-            uint32_t b = kissfft_pack_cpx(Fout[m]);
-            uint32_t c = kissfft_pack_cpx(Fout[m2]);
-            uint32_t d = kissfft_pack_cpx(Fout[m3]);
+            uint32_t a = kissfft_load_u32(Fout);
+            uint32_t b = kissfft_load_u32(&Fout[m]);
+            uint32_t c = kissfft_load_u32(&Fout[m2]);
+            uint32_t d = kissfft_load_u32(&Fout[m3]);
 #ifdef KISSFFT_USE_TWIDDLE_RF
             uint32_t t1 = (uint32_t)tw1_idx;
             uint32_t t2 = (uint32_t)tw2_idx;
             uint32_t t3 = (uint32_t)tw3_idx;
 #else
-            uint32_t t1 = kissfft_pack_cpx(*tw1);
-            uint32_t t2 = kissfft_pack_cpx(*tw2);
-            uint32_t t3 = kissfft_pack_cpx(*tw3);
+            uint32_t t1 = kissfft_load_u32(tw1);
+            uint32_t t2 = kissfft_load_u32(tw2);
+            uint32_t t3 = kissfft_load_u32(tw3);
 #endif
             C_BFY4_S0(a, b, t1);
             C_BFY4_S1(c, d, t2);
@@ -363,10 +363,10 @@ static void kf_bfly4(
             uint32_t o1 = C_BFY4_O1(t3);
             uint32_t o2 = C_BFY4_O2(t3);
             uint32_t o3 = C_BFY4_O3(t3);
-            *Fout = kissfft_unpack_cpx(o0);
-            Fout[m] = kissfft_unpack_cpx(o1);
-            Fout[m2] = kissfft_unpack_cpx(o2);
-            Fout[m3] = kissfft_unpack_cpx(o3);
+            kissfft_store_u32(Fout, o0);
+            kissfft_store_u32(&Fout[m], o1);
+            kissfft_store_u32(&Fout[m2], o2);
+            kissfft_store_u32(&Fout[m3], o3);
         }
         tw1 += fstride;
         tw2 += fstride*2;
@@ -640,6 +640,47 @@ void kf_work(
     }
 }
 
+static inline uint16_t kissfft_digitrev_512(uint16_t i)
+{
+    uint16_t d0 = (i >> 7) & 0x3u;
+    uint16_t d1 = (i >> 5) & 0x3u;
+    uint16_t d2 = (i >> 3) & 0x3u;
+    uint16_t d3 = (i >> 1) & 0x3u;
+    uint16_t d4 = i & 0x1u;
+    return (uint16_t)(d0 | (d1 << 2) | (d2 << 4) | (d3 << 6) | (d4 << 8));
+}
+
+static inline void kf_bfly8_soft_stage12(
+        kiss_fft_cpx *blk8,
+        const kiss_fft_cfg st
+        )
+{
+    kf_bfly2(blk8 + 0, 256, st, 1);
+    kf_bfly2(blk8 + 2, 256, st, 1);
+    kf_bfly2(blk8 + 4, 256, st, 1);
+    kf_bfly2(blk8 + 6, 256, st, 1);
+
+    kf_bfly4(blk8, 64, st, 2);
+}
+
+static void kf_work_flat_512(
+        kiss_fft_cpx * Fout,
+        const kiss_fft_cpx * f,
+        const kiss_fft_cfg st
+        )
+{
+    for (uint16_t i = 0; i < 512; ++i) {
+        Fout[i] = f[kissfft_digitrev_512(i)];
+    }
+
+    for (int g = 0; g < 64; ++g) {
+        kf_bfly8_soft_stage12(Fout + (8 * g), st);
+    }
+    for (int g = 0; g <  16; ++g) kf_bfly4(Fout + (32 * g), 16, st, 8);
+    for (int g = 0; g <   4; ++g) kf_bfly4(Fout + (128 * g), 4, st, 32);
+    kf_bfly4(Fout, 1, st, 128);
+}
+
 /*  facbuf is populated by p1,m1,p2,m2, ...
     where
     p[i] * m[i] = m[i-1]
@@ -723,7 +764,7 @@ void kiss_fft_hw_load_twiddles(kiss_fft_cfg st)
 #if defined(KISSFFT_USE_IM_CUSTOM) && (FIXED_POINT==16) && defined(__riscv)
     int nfft = st->nfft;
     for (int i = 0; i < nfft; ++i) {
-        uint32_t v = kissfft_pack_cpx(st->twiddles[i]);
+        uint32_t v = kissfft_load_u32(&st->twiddles[i]);
         kissfft_twld_u32((uint32_t)i, v);
     }
     uint32_t mode = 1;
@@ -754,11 +795,19 @@ void kiss_fft_stride(kiss_fft_cfg st,const kiss_fft_cpx *fin,kiss_fft_cpx *fout,
         return;
         }
 
-        kf_work(tmpbuf,fin,1,in_stride, st->factors,st);
+        if (st->nfft == 512 && in_stride == 1) {
+            kf_work_flat_512(tmpbuf, fin, st);
+        } else {
+            kf_work(tmpbuf,fin,1,in_stride, st->factors,st);
+        }
         memcpy(fout,tmpbuf,sizeof(kiss_fft_cpx)*st->nfft);
         KISS_FFT_TMP_FREE(tmpbuf);
     }else{
-        kf_work( fout, fin, 1,in_stride, st->factors,st );
+        if (st->nfft == 512 && in_stride == 1) {
+            kf_work_flat_512(fout, fin, st);
+        } else {
+            kf_work( fout, fin, 1,in_stride, st->factors,st );
+        }
     }
 }
 

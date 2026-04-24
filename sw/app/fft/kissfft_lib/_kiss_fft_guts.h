@@ -82,6 +82,18 @@ static inline kiss_fft_cpx kissfft_unpack_cpx(uint32_t v) {
     return r;
 }
 
+typedef uint32_t kissfft_u32_alias_t __attribute__((__may_alias__));
+
+static inline uint32_t kissfft_load_u32(const kiss_fft_cpx *p) {
+    const kissfft_u32_alias_t *pa = (const kissfft_u32_alias_t *)__builtin_assume_aligned(p, 4);
+    return *pa;
+}
+
+static inline void kissfft_store_u32(kiss_fft_cpx *p, uint32_t v) {
+    kissfft_u32_alias_t *pa = (kissfft_u32_alias_t *)__builtin_assume_aligned(p, 4);
+    *pa = v;
+}
+
 static inline uint32_t kissfft_cadd_u32(uint32_t a, uint32_t b) {
     uint32_t r;
     __asm__ volatile (".insn r 0x0B, 0, 0x00, %0, %1, %2" : "=r"(r) : "r"(a), "r"(b));
