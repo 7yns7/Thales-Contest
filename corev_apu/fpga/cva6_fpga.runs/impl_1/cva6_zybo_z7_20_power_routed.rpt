@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version     : Vivado v.2024.1 (lin64) Build 5076996 Wed May 22 18:36:09 MDT 2024
-| Date             : Thu Jan 29 20:15:27 2026
+| Date             : Fri Mar 13 12:36:05 2026
 | Host             : Younes running 64-bit Ubuntu 24.04.3 LTS
 | Command          : report_power -file cva6_zybo_z7_20_power_routed.rpt -pb cva6_zybo_z7_20_power_summary_routed.pb -rpx cva6_zybo_z7_20_power_routed.rpx
 | Design           : cva6_zybo_z7_20
@@ -52,16 +52,16 @@ Table of Contents
 +--------------------------+-----------+----------+-----------+-----------------+
 | On-Chip                  | Power (W) | Used     | Available | Utilization (%) |
 +--------------------------+-----------+----------+-----------+-----------------+
-| Clocks                   |     0.025 |        6 |       --- |             --- |
+| Clocks                   |     0.024 |        6 |       --- |             --- |
 | Slice Logic              |     0.011 |    67915 |       --- |             --- |
-|   LUT as Logic           |     0.011 |    25651 |     53200 |           48.22 |
+|   LUT as Logic           |     0.011 |    25633 |     53200 |           48.18 |
 |   CARRY4                 |    <0.001 |     1297 |     13300 |            9.75 |
 |   Register               |    <0.001 |    31482 |    106400 |           29.59 |
 |   LUT as Distributed RAM |    <0.001 |      222 |     17400 |            1.28 |
 |   F7/F8 Muxes            |    <0.001 |     3684 |     53200 |            6.92 |
 |   LUT as Shift Register  |    <0.001 |       40 |     17400 |            0.23 |
 |   Others                 |     0.000 |      668 |       --- |             --- |
-| Signals                  |     0.015 |    52651 |       --- |             --- |
+| Signals                  |     0.015 |    52664 |       --- |             --- |
 | Block RAM                |     0.010 |     62.5 |       140 |           44.64 |
 | MMCM                     |     0.106 |        1 |         4 |           25.00 |
 | DSPs                     |    <0.001 |       32 |       220 |           14.55 |
@@ -157,9 +157,9 @@ Table of Contents
 | Name                                    | Power (W) |
 +-----------------------------------------+-----------+
 | cva6_zybo_z7_20                         |     0.167 |
-|   i_ariane                              |     0.036 |
-|     i_cva6                              |     0.036 |
-|       ex_stage_i                        |     0.015 |
+|   i_ariane                              |     0.037 |
+|     i_cva6                              |     0.037 |
+|       ex_stage_i                        |     0.014 |
 |       gen_cache_hpd.i_cache_subsystem   |     0.014 |
 |       i_frontend                        |     0.002 |
 |       issue_stage_i                     |     0.004 |

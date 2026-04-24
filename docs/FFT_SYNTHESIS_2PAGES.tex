@@ -1,0 +1,114 @@
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{caption}
+
+\geometry{margin=1.7cm}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\captionsetup{font=small}
+
+\title{\vspace{-1em}Accélération FFT-512 sur CV32A6\\\large Synthèse technique (2 pages)}
+\author{Projet Thales -- CVA6 Softcore Contest}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-1.4em}
+
+\section*{1. Objectif et approche}
+Objectif: réduire le coût d'une FFT fixe-point 512 points (kissFFT) sur CV32A6, tout en respectant les contraintes concours (compatibilité RV32IM\_Zicsr, pas d'accélérateur gros grain matériel FFT8+, pas de twiddles codés en dur, non-régression logicielle).
+
+Approche retenue:
+\begin{itemize}[leftmargin=1.2em]
+    \item extension ISA \emph{fine-grain} (opérations complexes packées),
+    \item unités papillon dédiées \texttt{BFY2/BFY4} dans le pipeline existant,
+    \item registre de twiddles matériel (chargé au runtime),
+    \item adaptation ciblée de la pile logicielle kissFFT.
+\end{itemize}
+
+\section*{2. Modifications matérielles (CV32A6)}
+Les modifications sont intégrées au flot standard de CV32A6 (decode + ALU/MULT), sans changer de cœur.
+
+\begin{itemize}[leftmargin=1.2em]
+    \item \textbf{OpcodeCustom0 (0x0B)}: \texttt{CADD16, CSUB16, CMUL16, CMADD16, CMSUB16}, \texttt{TWLD}, \texttt{TWCFG}
+    \item \textbf{OpcodeCustom1 (0x2B)}: \texttt{BFY2}, \texttt{BFY2H}
+    \item \textbf{OpcodeCustom2 (0x5B)}: protocole \texttt{BFY4\_S0/S1/S2} + \texttt{BFY4\_O0..O3}
+\end{itemize}
+
+\textbf{Idée clé:} un papillon radix-4 est séquencé en 3 étapes de setup + 4 lectures de sorties, ce qui garde un contrôle logiciel explicite (pas de séquenceur entièrement câblé).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.95\linewidth]{pipeline_cv32a6_modifs.png}
+    \caption{Pipeline CV32A6 et zones modifiées (decode, ALU, MULT/BFY2/BFY4, twiddle register file).}
+    \label{fig:pipeline}
+\end{figure}
+
+\section*{3. Modifications logicielles (kissFFT)}
+\textbf{Fichiers principaux:}
+\begin{itemize}[leftmargin=1.2em]
+    \item \texttt{\_kiss\_fft\_guts.h}: intrinsics asm + wrappers C
+    \item \texttt{kiss\_fft.c}: intégration des protocoles BFY2/BFY4
+    \item \texttt{fft\_int16\_main.c}: preload twiddles via \texttt{TWLD/TWCFG}
+\end{itemize}
+
+\textbf{Optimisations marquantes:}
+\begin{itemize}[leftmargin=1.2em]
+    \item remplacement des conversions coûteuses pack/unpack par accès 32-bit directs (load/store),
+    \item chemin FFT-512 ``flat'' dédié (ordonnancement software, toujours basé sur BFY2/BFY4),
+    \item support scaling Q15 dans la chaîne BFY4 (option activable).
+\end{itemize}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.78\linewidth]{bfy4_schema.png}
+    \caption{Schéma fonctionnel BFY4 (S0/S1/S2 puis O0..O3).}
+    \label{fig:bfy4}
+\end{figure}
+
+\section*{4. Résultats expérimentaux}
+Mesures sur la même application FFT-512 (format int16 Q15):
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Version} & \textbf{Instructions} & \textbf{Cycles} & \textbf{Gain vs baseline} \\
+\midrule
+Baseline (RV32IM) & \texttt{\textless{}à compléter\textgreater{}} & \texttt{\textless{}à compléter\textgreater{}} & -- \\
+Ops complexes (Tier 1) & \texttt{\textless{}à compléter\textgreater{}} & \texttt{\textless{}à compléter\textgreater{}} & \texttt{\textless{}x\textgreater{}} \\
+BFY4 (Tier 1+2+3+...) & \texttt{\textless{}à compléter\textgreater{}} & \texttt{\textless{}à compléter\textgreater{}} & \texttt{\textless{}x\textgreater{}} \\
+\bottomrule
+\end{tabular}
+\caption{Comparaison synthétique des performances.}
+\label{tab:results}
+\end{table}
+
+\textbf{Exemple de mesure observée} (configuration accélérée): \texttt{48203} instructions et \texttt{85883} cycles avec sortie bit-exacte validée.
+
+\section*{5. Conformité et validation}
+\begin{itemize}[leftmargin=1.2em]
+    \item \textbf{Bit-exactness}: comparaison \texttt{memcmp()} contre une référence \texttt{g\_gold}.
+    \item \textbf{Compatibilité}: exécution conservée des applications hors FFT.
+    \item \textbf{Contraintes matérielles}: modifications dans CV32A6, pas d'augmentation cache, twiddles chargés dynamiquement.
+\end{itemize}
+
+\section*{6. Conclusion}
+Le projet démontre qu'une accélération FFT significative est obtenue avec des extensions ISA fines et un co-design matériel/logiciel propre, sans rompre la philosophie du cœur CV32A6. La voie retenue maximise le réemploi du pipeline existant et maintient la validité fonctionnelle (résultats bit-à-bit).
+
+\vfill
+\small
+\textbf{Notes d'utilisation:} placer les figures au même niveau que ce fichier avec les noms
+\texttt{pipeline\_cv32a6\_modifs.png} et \texttt{bfy4\_schema.png}. Compiler avec \texttt{pdflatex}.
+
+\end{document}

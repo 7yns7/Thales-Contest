@@ -1,0 +1,139 @@
+%% ============================================================
+%%  Poster A1 — Accélération FFT sur CV32A6 RISC-V
+%%  Contest Thales Softcore RISC-V 2025-2026
+%% ============================================================
+\documentclass[final,a1paper,fontscale=0.26]{baposter}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+
+\usepackage{calc}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{relsize}
+\usepackage{multirow}
+\usepackage{url}
+\usepackage{multicol}
+\usepackage{palatino}
+\usepackage{setspace}
+\usepackage{textcomp}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{colortbl}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, calc, decorations.pathreplacing, fit, shapes.geometric, backgrounds}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{pifont}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+
+\setlist{nolistsep,leftmargin=1.5em}
+
+%% ---- Color palette ----
+\definecolor{thales}{HTML}{00205B}       % Thales dark blue
+\definecolor{thaleslight}{HTML}{4A90D9}  % lighter blue
+\definecolor{thalescyan}{HTML}{00A3E0}   % accent cyan
+\definecolor{bglight}{HTML}{F0F4FA}      % light background
+\definecolor{hwcolor}{HTML}{2E7D32}      % green for hardware
+\definecolor{swcolor}{HTML}{E65100}      % orange for software
+\definecolor{accentred}{HTML}{C62828}    % red accent
+
+%% ---- Listings style ----
+\lstdefinestyle{cstyle}{
+  language=C,
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\bfseries\color{thales},
+  commentstyle=\itshape\color{gray},
+  stringstyle=\color{hwcolor},
+  breaklines=true,
+  frame=none,
+  columns=fullflexible,
+  morekeywords={uint32_t,int16_t,__asm__,volatile},
+}
+
+%% ---- Custom commands ----
+\newcommand{\cmark}{\textcolor{hwcolor}{\ding{51}}}
+\newcommand{\xmark}{\textcolor{accentred}{\ding{55}}}
+\newcommand{\hw}[1]{\textcolor{hwcolor}{\textbf{#1}}}
+\newcommand{\sw}[1]{\textcolor{swcolor}{\textbf{#1}}}
+
+\graphicspath{{./figures/}{./04_cv32a6_design/images/}}
+
+\input{abbrev.tex}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+\begin{poster}%
+  {
+  grid=false,
+  columns=6,
+  colspacing=0.8em,
+  bgColorOne=white,
+  bgColorTwo=white,
+  borderColor=thales,
+  headerColorOne=thales,
+  headerColorTwo=thales,
+  headerFontColor=white,
+  boxColorOne=white,
+  boxColorTwo=bglight,
+  textborder=roundedleft,
+  eyecatcher=true,
+  headerborder=closed,
+  headerheight=0.07\textheight,
+  headershape=roundedright,
+  headershade=shadelr,
+  headerfont=\Large\bf\textsf,
+  textfont={\setlength{\parindent}{0em}},
+  boxshade=plain,
+  background=plain,
+  linewidth=2pt,
+  }
+  %% ---- Eye catcher (left logo) ----
+  {
+    \begin{minipage}{0.10\linewidth}
+      \centering
+      % \includegraphics[width=0.9\linewidth]{logo_ecole.png}
+      \vspace{0.5em}
+      \textbf{\small\textsf{Logo}}\\
+      \textbf{\small\textsf{École}}
+    \end{minipage}
+  }
+  %% ---- Title ----
+  {\textsf{\LARGE Accélération matérielle d'une FFT-512 \\[0.2em]
+  sur cœur RISC-V CV32A6 par extensions ISA custom}\vspace{0.3em}}
+  %% ---- Authors ----
+  {\normalsize\textsf{
+    Younes \textsc{NomDeFamille}$^{1}$, Co\'{e}quipier \textsc{Nom}$^{1}$ \\[0.1em]
+    {\small $^1$ École / Université \quad---\quad Contest Thales Softcore RISC-V 2025--2026}\\
+    {\small\tt younes@email.fr}
+  }}
+  %% ---- Right logo ----
+  {
+    \begin{minipage}{0.10\linewidth}
+      \centering
+      % \includegraphics[width=0.9\linewidth]{logo_thales.png}
+      \vspace{0.5em}
+      \textbf{\small\textsf{Thales}}\\
+      \textbf{\small\textsf{RISC-V}}
+    \end{minipage}
+  }
+
+\input{sections/section1_contexte.tex}
+
+\input{sections/section2_architecture.tex}
+
+\input{sections/section3_apport.tex}
+
+\input{sections/section5_resultats.tex}
+
+\input{sections/section6_conclusion.tex}
+
+\end{poster}
+\end{document}
