@@ -34,6 +34,7 @@ corev_apu/fpga/ariane.cache/
 corev_apu/fpga/ariane.hw/
 corev_apu/fpga/.Xil/
 corev_apu/fpga/mode*
+corev_apu/fpga/*.xci
 stdout/
 work-dpi/
 tb/riscv-isa-sim/
