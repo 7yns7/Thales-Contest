@@ -29,6 +29,12 @@
 
 VIVADO ?= vivado
 
+# Default board/part (override via env if needed)
+XILINX_PART ?= xc7z020clg400-1
+XILINX_BOARD ?= digilentinc.com:zybo-z7-20:part0:1.2
+export XILINX_PART
+export XILINX_BOARD
+
 work-sim-dir := work-sim
 
 work-dir := work-fpga
