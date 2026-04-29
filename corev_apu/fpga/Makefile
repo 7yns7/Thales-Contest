@@ -41,12 +41,18 @@ work-dir := work-fpga
 bit := $(work-dir)/cva6_fpga.bit
 
 ip-dir := xilinx
-ips := xlnx_blk_mem_gen.xci \
-       xlnx_processing_system7.xci \
-       xlnx_axi_clock_converter.xci \
-       xlnx_axi_dwidth_converter_dm_master.xci \
-       xlnx_axi_dwidth_converter_dm_slave.xci \
-       xlnx_clk_gen.xci             
+ip-names := xlnx_blk_mem_gen \
+	    xlnx_processing_system7 \
+	    xlnx_axi_clock_converter \
+	    xlnx_axi_dwidth_converter_dm_master \
+	    xlnx_axi_dwidth_converter_dm_slave \
+	    xlnx_clk_gen
+
+define ip_xci
+$(ip-dir)/$(1)/$(1).srcs/sources_1/ip/$(1)/$(1).xci
+endef
+
+ips := $(foreach ip,$(ip-names),$(call ip_xci,$(ip)))
 
 all: $(cva6_ooc)
 
@@ -94,11 +100,14 @@ get_hs2_sn:
 
 
 
-$(ips): %.xci :
+define ip_rule
+$(call ip_xci,$(1)):
 	mkdir -p $(work-dir)
-	@echo Generating $(@F)
-	@cd $(ip-dir)/$(basename $(@F)) && make clean && make
-	@cp $(ip-dir)/$(basename $(@F))/$(basename $(@F)).srcs/sources_1/ip/$(basename $(@F))/$(@F) $@
+	@echo Generating $(1)
+	@cd $(ip-dir)/$(1) && make clean && make
+endef
+
+$(foreach ip,$(ip-names),$(eval $(call ip_rule,$(ip))))
 
 clean:
 	rm -rf  *.log \
